@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "npx hardhat typechain && npx tsc",
+    "clean": "rm -rf dist generated cache artifacts",
     "test": "echo \\\\\\\"Error: no test specified\\\\\\\" && exit 1"
   },
   "contributors": [
@@ -29,7 +30,9 @@
     "@superfluid-finance/ethereum-contracts": "^1.0.0-rc.4",
     "@typechain/ethers-v5": "^7.0.1",
     "@typechain/hardhat": "^2.0.2",
+    "@types/chai": "^4.2.19",
     "@types/mocha": "^8.2.2",
+    "@types/node": "^15.12.4",
     "balancer-core": "git+https://github.com/balancer-labs/balancer-core.git",
     "chai": "^4.3.4",
     "configurable-rights-pool": "git+https://github.com/balancer-labs/configurable-rights-pool.git",
