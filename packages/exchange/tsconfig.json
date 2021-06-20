@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfg.json",
+  "compilerOptions": {
+    "outDir": "dist"
+  }
+}

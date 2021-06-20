@@ -4,7 +4,7 @@
   "description": "streaming exchange app for continuous buy/sell",
   "main": "index.js",
   "scripts": {
-    "build": "npx hardhat typechain",
+    "build": "npx hardhat typechain && npx tsc",
     "test": "echo \\\\\\\"Error: no test specified\\\\\\\" && exit 1"
   },
   "contributors": [
@@ -17,6 +17,10 @@
       "email": "git@mconover.dev"
     }
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KillerByte/streamtrade.git"
+  },
   "license": "GPL-3.0",
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers@^0.3.0-beta.10",

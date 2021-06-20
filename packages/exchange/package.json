@@ -1,0 +1,38 @@
+{
+  "name": "@streamtrade/exchange",
+  "version": "0.0.1",
+  "description": "Stream swap exchange",
+  "contributors": [
+    {
+      "name": "Daniel Beal",
+      "email": "git@danb.email"
+    },
+    {
+      "name": "Matthew Conover",
+      "email": "git@mconover.dev"
+    }
+  ],
+  "license": "GPL-3.0",
+  "main": "src/main.ts",
+  "directories": {
+    "lib": "src",
+    "test": "test"
+  },
+  "files": [
+    "src"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KillerByte/streamtrade.git"
+  },
+  "scripts": {
+    "build": "npx tsc",
+    "test": "echo \"Error: run tests from root\" && exit 1"
+  },
+  "bugs": {
+    "url": "https://github.com/KillerByte/streamtrade/issues"
+  },
+  "dependencies": {
+    "@streamtrade/core": "0.0.1"
+  }
+}

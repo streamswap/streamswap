@@ -22,7 +22,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     save('StreamSwapPool', {
         abi: StreamSwapPool__factory.abi,
-        address: poolDeploy.events[0]
+        address: poolDeploy.events![0]
     });
 
     // bind xETH
