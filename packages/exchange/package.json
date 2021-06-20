@@ -1,6 +1,7 @@
 {
   "name": "@streamtrade/exchange",
   "version": "0.0.1",
+  "private": true,
   "description": "Stream swap exchange",
   "contributors": [
     {
@@ -18,30 +19,58 @@
     "lib": "src",
     "test": "test"
   },
-  "files": [
-    "src"
-  ],
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/KillerByte/streamtrade.git"
   },
   "scripts": {
-    "build": "npx tsc",
-    "clean": "rm -rf dist",
-    "test": "echo \"Error: run tests from root\" && exit 1"
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
   },
   "bugs": {
     "url": "https://github.com/KillerByte/streamtrade/issues"
-  },
-  "dependencies": {
-    "@streamtrade/core": "0.0.1",
-    "ts-node": "^10.0.0"
   },
   "devDependencies": {
     "@types/chai": "^4.2.19",
     "@types/mocha": "^8.2.2",
     "@types/node": "^15.12.4",
     "chai": "^4.3.4",
-    "typescript": "^4.3.4"
+    "typescript": "^4.3.4",
+    "ts-node": "^10.0.0"
+  },
+  "dependencies": {
+    "@testing-library/jest-dom": "^5.14.1",
+    "@testing-library/react": "^11.2.7",
+    "@testing-library/user-event": "^12.8.3",
+    "@types/jest": "^26.0.23",
+    "@types/node": "^12.20.15",
+    "@types/react": "^17.0.11",
+    "@types/react-dom": "^17.0.8",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-scripts": "4.0.3",
+    "typescript": "^4.3.4",
+    "web-vitals": "^1.1.2",
+    "@streamtrade/core": "0.0.1"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }
