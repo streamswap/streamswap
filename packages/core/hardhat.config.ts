@@ -46,7 +46,7 @@ const hhConfig: HardhatUserConfig = {
 
   typechain: {
     target: 'ethers-v5',
-    outDir: '../generated/typechain'
+    outDir: 'generated/typechain'
   },
   solidity: {
     compilers: [
