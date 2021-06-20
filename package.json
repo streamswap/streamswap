@@ -12,6 +12,10 @@
       "email": "git@mconover.dev"
     }
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KillerByte/streamtrade.git"
+  },
   "license": "GPL-3.0",
   "devDependencies": {
     "lerna": "^4.0.0",
