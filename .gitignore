@@ -4,3 +4,5 @@ generated
 #Hardhat files
 cache
 artifacts
+.idea
+.vscode
