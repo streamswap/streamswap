@@ -36,27 +36,17 @@ import {
 import "./balancer/BToken.sol";
 import "./balancer/BMath.sol";
 
-struct StreamSwapArgs {
-    address destSuperToken;
-    address recipient;
-    uint inAmount;
-    uint minRate;
-    uint maxRate;
-}
+import "./StreamSwapLibrary.sol";
 
-struct SuperTokenVarsHelper {
-    address tokenIn;
-    address tokenOut;
-    uint tokenInBalance;
-    uint tokenOutBalance;
-}
+contract StreamSwapPool is SuperAppBase, BBronze, BToken {
 
-contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
+    using StreamSwapLibrary for StreamSwapLibrary.Context;
 
-    struct Record {
-        bool bound;   // is token bound to pool
-        uint index;   // private
-        uint denorm;  // denormalized weight
+    struct SuperTokenVarsHelper {
+        address tokenIn;
+        address tokenOut;
+        uint tokenInBalance;
+        uint tokenOutBalance;
     }
 
     event LOG_SWAP(
@@ -102,9 +92,6 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         _;
     }
 
-    ISuperfluid private _host; // host
-    IConstantFlowAgreementV1 private _cfa; // the stored constant flow agreement class address
-
     bool private _mutex;
 
     address private _factory;    // BFactory address to push token exitFee to
@@ -119,15 +106,10 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
     address[] private _superTokens;
     mapping(address => address) _underlyingToSuperToken;
 
-    mapping(address=>Record) private  _records;
+    mapping(address => StreamSwapLibrary.Record) private  _records;
     uint private _totalWeight;
 
-
-    // output token to input token to receivers
-    // only for balancer trade hooks. Limitation for the scalability.
-    mapping(ISuperToken => StreamSwapArgs[]) _accountsPayable;
-
-    mapping(address => mapping (ISuperToken => mapping (ISuperToken => uint))) _accountSwapIndexes;
+    StreamSwapLibrary.Context _streamSwapContext;
 
     constructor(
         ISuperfluid host,
@@ -143,7 +125,10 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
             SuperAppDefinitions.BEFORE_AGREEMENT_UPDATED_NOOP |
             SuperAppDefinitions.BEFORE_AGREEMENT_TERMINATED_NOOP;
 
-        _host.registerApp(configWord);
+        host.registerApp(configWord);
+
+        _streamSwapContext.host = host;
+        _streamSwapContext.cfa = cfa;
 
         // balancer construct
         _controller = msg.sender;
@@ -154,154 +139,8 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
     }
 
     modifier onlyHost() {
-        require(msg.sender == address(_host), "ERR HOST ONLY");
+        require(msg.sender == address(_streamSwapContext.host), "ERR HOST ONLY");
         _;
-    }
-
-    function decodeUserData(bytes memory userData) private pure returns (StreamSwapArgs[] memory ssa) {
-        /*(
-            ssa
-        ) = abi.decode(userData, (StreamSwapArgs[]));*/
-    }
-
-    function _makeTrade(ISuperToken superToken, bytes calldata ctx)
-        private
-        returns (bytes memory newCtx)
-    {
-        ISuperfluid.Context memory context = _host.decodeCtx(ctx);
-        StreamSwapArgs[] memory args = decodeUserData(context.userData);
-
-        (,int96 inFlow,,) = _cfa.getFlow(superToken, context.msgSender, address(this));
-
-        uint inSum = 0;
-        for(uint i = 0;i < args.length;i++) {
-            inSum += args[i].inAmount;
-
-            uint idx = _accountSwapIndexes[context.msgSender][superToken][ISuperToken(args[i].destSuperToken)];
-
-            _updateTrade(superToken, args[i], _accountsPayable[superToken][idx - 1]);
-
-            if(idx > 0) {
-                _accountsPayable[superToken][idx - 1] = args[i];
-            }
-            else {
-                _accountSwapIndexes[context.msgSender][superToken][ISuperToken(args[i].destSuperToken)] = _accountsPayable[superToken].length + 1;
-                _accountsPayable[superToken].push(args[i]);
-            }
-        }
-
-        require(inSum == uint256(inFlow), "ERR_INVALID_SUM");
-    }
-
-    function _updateTrade(ISuperToken superToken, StreamSwapArgs memory args, StreamSwapArgs memory prevArgs)
-        private
-        returns (bytes memory newCtx)
-    {
-        uint oldOutRate = prevArgs.inAmount > 0 ? calcOutGivenIn(
-            getSuperBalance(address(superToken)), _records[address(superToken)].denorm, 
-            getSuperBalance(args.destSuperToken), _records[args.destSuperToken].denorm, 
-            prevArgs.inAmount, 0) : 0;
-
-        uint newOutRate = calcOutGivenIn(
-            getSuperBalance(address(superToken)), _records[address(superToken)].denorm, 
-            getSuperBalance(args.destSuperToken), _records[args.destSuperToken].denorm, 
-            args.inAmount, 0);
-
-        (,int96 curOutFlow,,) = _cfa.getFlow(ISuperToken(args.destSuperToken), address(this), args.recipient);
-
-        if (prevArgs.recipient != args.recipient || prevArgs.destSuperToken != args.destSuperToken) {
-
-            if (prevArgs.destSuperToken != address(0) && uint256(curOutFlow) == oldOutRate) {
-                (newCtx, ) = _host.callAgreementWithContext(
-                    _cfa,
-                    abi.encodeWithSelector(
-                        _cfa.deleteFlow.selector,
-                        args.destSuperToken,
-                        address(this),
-                        args.recipient,
-                        new bytes(0) // placeholder
-                    ),
-                    "0x",
-                    newCtx
-                );
-            }
-            else if (prevArgs.destSuperToken != address(0) && uint256(curOutFlow) > prevArgs.inAmount) {
-                (newCtx, ) = _host.callAgreementWithContext(
-                    _cfa,
-                    abi.encodeWithSelector(
-                        _cfa.updateFlow.selector,
-                        args.destSuperToken,
-                        address(this),
-                        args.recipient,
-                        uint256(curOutFlow) - oldOutRate,
-                        new bytes(0) // placeholder
-                    ),
-                    "0x",
-                    newCtx
-                );
-            }
-
-            (newCtx, ) = _host.callAgreementWithContext(
-                _cfa,
-                abi.encodeWithSelector(
-                    curOutFlow == 0 ? _cfa.createFlow.selector : _cfa.updateFlow.selector,
-                    args.destSuperToken,
-                    address(this),
-                    args.recipient,
-                    uint256(curOutFlow) + newOutRate,
-                    new bytes(0) // placeholder
-                ),
-                "0x",
-                newCtx
-            );
-        }
-        else if (oldOutRate != newOutRate) {
-
-            // just modifying amount
-            (newCtx, ) = _host.callAgreementWithContext(
-                _cfa,
-                abi.encodeWithSelector(
-                    _cfa.updateFlow.selector,
-                    args.destSuperToken,
-                    address(this),
-                    args.recipient,
-                    uint256(curOutFlow) + newOutRate - oldOutRate,
-                    new bytes(0) // placeholder
-                ),
-                "0x",
-                newCtx
-            );
-        }
-    }
-
-    function _wipeTrade(ISuperToken superToken, bytes calldata ctx)
-        private
-        returns (bytes memory newCtx)
-    {
-
-        /*(newCtx, ) = _host.callAgreementWithContext(
-            _cfa,
-            abi.encodeWithSelector(
-                curOutFlow == 0 ? _cfa.createFlow.selector : _cfa.updateFlow.selector,
-                args.destSuperToken,
-                address(this),
-                context.msgSender,
-                new bytes(0) // placeholder
-            ),
-            "0x",
-            newCtx
-        );*/
-    }
-
-    function _updateFlowRates(address srcSuperToken)
-        private
-    {
-        StreamSwapArgs[] memory swapArgs = _accountsPayable[ISuperToken(srcSuperToken)];
-
-        uint len = swapArgs.length; // not sure if this is needed
-        for(uint i = 0;i < len;i++) {
-            _updateTrade(ISuperToken(srcSuperToken), swapArgs[i], swapArgs[i]);
-        }
     }
 
     /**************************************************************************
@@ -310,7 +149,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
 
     function afterAgreementCreated(
         ISuperToken _superToken,
-        address _agreementClass,
+        address, // _agreementClass,
         bytes32, // _agreementId,
         bytes calldata /*_agreementData*/,
         bytes calldata ,// _cbdata,
@@ -320,7 +159,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         onlyHost
         returns (bytes memory newCtx)
     {
-        newCtx = _makeTrade(_superToken, _ctx);
+        newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
     }
 
     function afterAgreementUpdated(
@@ -335,7 +174,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         onlyHost
         returns (bytes memory newCtx)
     {
-        newCtx = _makeTrade(_superToken, _ctx);
+        newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
     }
 
     function afterAgreementTerminated(
@@ -350,8 +189,12 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         onlyHost
         returns (bytes memory newCtx)
     {
-        newCtx = _wipeTrade(_superToken, _ctx);
+        newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
     }
+
+    /**************************************************************************
+     * Balancer Pool
+     *************************************************************************/
 
     function isPublicSwap()
         external view
@@ -423,7 +266,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
 
         require(_records[token].bound, "ERR_NOT_BOUND");
         uint denorm = _records[token].denorm;
-        return bdiv(denorm, _totalWeight);
+        return StreamSwapLibrary.bdiv(denorm, _totalWeight);
     }
 
     function getBalance(address token)
@@ -519,9 +362,9 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
 
         require(_superTokens.length < MAX_BOUND_TOKENS, "ERR_MAX_TOKENS");
 
-        require(address(_host) == ISuperToken(token).getHost(), "ERR_BAD_HOST");
+        require(address(_streamSwapContext.host) == ISuperToken(token).getHost(), "ERR_BAD_HOST");
 
-        _records[token] = Record({
+        _records[token] = StreamSwapLibrary.Record({
             bound: true,
             index: _superTokens.length,
             denorm: 0    // denorm will be validated
@@ -547,22 +390,22 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         // Adjust the denorm and totalWeight
         uint oldWeight = _records[token].denorm;
         if (denorm > oldWeight) {
-            _totalWeight = badd(_totalWeight, bsub(denorm, oldWeight));
+            _totalWeight = StreamSwapLibrary.badd(_totalWeight, StreamSwapLibrary.bsub(denorm, oldWeight));
             require(_totalWeight <= MAX_TOTAL_WEIGHT, "ERR_MAX_TOTAL_WEIGHT");
         } else if (denorm < oldWeight) {
-            _totalWeight = bsub(_totalWeight, bsub(oldWeight, denorm));
+            _totalWeight = StreamSwapLibrary.bsub(_totalWeight, StreamSwapLibrary.bsub(oldWeight, denorm));
         }        
         _records[token].denorm = denorm;
 
         // Adjust the balance record and actual token balance
         uint oldBalance = getSuperBalance(token);
         if (balance > oldBalance) {
-            _pullUnderlying(token, msg.sender, bsub(balance, oldBalance));
+            _pullUnderlying(token, msg.sender, StreamSwapLibrary.bsub(balance, oldBalance));
         } else if (balance < oldBalance) {
             // In this case liquidity is being withdrawn, so charge EXIT_FEE
-            uint tokenBalanceWithdrawn = bsub(oldBalance, balance);
-            uint tokenExitFee = bmul(tokenBalanceWithdrawn, EXIT_FEE);
-            _pushUnderlying(token, msg.sender, bsub(tokenBalanceWithdrawn, tokenExitFee));
+            uint tokenBalanceWithdrawn = StreamSwapLibrary.bsub(oldBalance, balance);
+            uint tokenExitFee = StreamSwapLibrary.bmul(tokenBalanceWithdrawn, EXIT_FEE);
+            _pushUnderlying(token, msg.sender, StreamSwapLibrary.bsub(tokenBalanceWithdrawn, tokenExitFee));
             _pushUnderlying(token, _factory, tokenExitFee);
         }
     }
@@ -578,9 +421,9 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         require(!_finalized, "ERR_IS_FINALIZED");
 
         uint tokenBalance = getSuperBalance(token);
-        uint tokenExitFee = bmul(tokenBalance, EXIT_FEE);
+        uint tokenExitFee = StreamSwapLibrary.bmul(tokenBalance, EXIT_FEE);
 
-        _totalWeight = bsub(_totalWeight, _records[token].denorm);
+        _totalWeight = StreamSwapLibrary.bsub(_totalWeight, _records[token].denorm);
 
         // Swap the token-to-unbind with the last token,
         // then delete the last token
@@ -589,13 +432,13 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         _superTokens[index] = _superTokens[last];
         _records[_superTokens[index]].index = index;
         _superTokens.pop();
-        _records[token] = Record({
+        _records[token] = StreamSwapLibrary.Record({
             bound: false,
             index: 0,
             denorm: 0
         });
 
-        _pushUnderlying(token, msg.sender, bsub(tokenBalance, tokenExitFee));
+        _pushUnderlying(token, msg.sender, StreamSwapLibrary.bsub(tokenBalance, tokenExitFee));
         _pushUnderlying(token, _factory, tokenExitFee);
     }
 
@@ -609,9 +452,9 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
 
         require(_records[superTokenIn].bound, "ERR_NOT_BOUND");
         require(_records[superTokenOut].bound, "ERR_NOT_BOUND");
-        Record storage inRecord = _records[superTokenIn];
-        Record storage outRecord = _records[superTokenOut];
-        return calcSpotPrice(getSuperBalance(superTokenIn), inRecord.denorm, getSuperBalance(superTokenOut), outRecord.denorm, _swapFee);
+        StreamSwapLibrary.Record storage inRecord = _records[superTokenIn];
+        StreamSwapLibrary.Record storage outRecord = _records[superTokenOut];
+        return StreamSwapLibrary.calcSpotPrice(getSuperBalance(superTokenIn), inRecord.denorm, getSuperBalance(superTokenOut), outRecord.denorm, _swapFee);
     }
 
     function getSpotPriceSansFee(address tokenIn, address tokenOut)
@@ -624,9 +467,9 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
 
         require(_records[superTokenIn].bound, "ERR_NOT_BOUND");
         require(_records[superTokenOut].bound, "ERR_NOT_BOUND");
-        Record storage inRecord = _records[superTokenIn];
-        Record storage outRecord = _records[superTokenOut];
-        return calcSpotPrice(getSuperBalance(superTokenIn), inRecord.denorm, getSuperBalance(superTokenOut), outRecord.denorm, 0);
+        StreamSwapLibrary.Record storage inRecord = _records[superTokenIn];
+        StreamSwapLibrary.Record storage outRecord = _records[superTokenOut];
+        return StreamSwapLibrary.calcSpotPrice(getSuperBalance(superTokenIn), inRecord.denorm, getSuperBalance(superTokenOut), outRecord.denorm, 0);
     }
 
     function joinPool(uint poolAmountOut, uint[] calldata maxAmountsIn)
@@ -637,13 +480,13 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         require(_finalized, "ERR_NOT_FINALIZED");
 
         uint poolTotal = totalSupply();
-        uint ratio = bdiv(poolAmountOut, poolTotal);
+        uint ratio = StreamSwapLibrary.bdiv(poolAmountOut, poolTotal);
         require(ratio != 0, "ERR_MATH_APPROX");
 
         for (uint i = 0; i < _superTokens.length; i++) {
             address t = _superTokens[i];
             uint bal = getSuperBalance(t);
-            uint tokenAmountIn = bmul(ratio, bal);
+            uint tokenAmountIn = StreamSwapLibrary.bmul(ratio, bal);
             require(tokenAmountIn != 0, "ERR_MATH_APPROX");
             require(tokenAmountIn <= maxAmountsIn[i], "ERR_LIMIT_IN");
             emit LOG_JOIN(msg.sender, t, tokenAmountIn);
@@ -661,9 +504,9 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         require(_finalized, "ERR_NOT_FINALIZED");
 
         uint poolTotal = totalSupply();
-        uint exitFee = bmul(poolAmountIn, EXIT_FEE);
-        uint pAiAfterExitFee = bsub(poolAmountIn, exitFee);
-        uint ratio = bdiv(pAiAfterExitFee, poolTotal);
+        uint exitFee = StreamSwapLibrary.bmul(poolAmountIn, EXIT_FEE);
+        uint pAiAfterExitFee = StreamSwapLibrary.bsub(poolAmountIn, exitFee);
+        uint ratio = StreamSwapLibrary.bdiv(pAiAfterExitFee, poolTotal);
         require(ratio != 0, "ERR_MATH_APPROX");
 
         _pullPoolShare(msg.sender, poolAmountIn);
@@ -673,7 +516,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         for (uint i = 0; i < _superTokens.length; i++) {
             address t = _superTokens[i];
             uint bal = getSuperBalance(t);
-            uint tokenAmountOut = bmul(ratio, bal);
+            uint tokenAmountOut = StreamSwapLibrary.bmul(ratio, bal);
             require(tokenAmountOut != 0, "ERR_MATH_APPROX");
             require(tokenAmountOut >= minAmountsOut[i], "ERR_LIMIT_OUT");
             emit LOG_EXIT(msg.sender, t, tokenAmountOut);
@@ -706,15 +549,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         require(_records[si.tokenOut].bound, "ERR_NOT_BOUND");
         require(_publicSwap, "ERR_SWAP_NOT_PUBLIC");
 
-        Record storage inRecord = _records[address(si.tokenIn)];
-        Record storage outRecord = _records[address(si.tokenOut)];
+        StreamSwapLibrary.Record storage inRecord = _records[address(si.tokenIn)];
+        StreamSwapLibrary.Record storage outRecord = _records[address(si.tokenOut)];
 
         si.tokenInBalance = getSuperBalance(si.tokenIn);
         si.tokenOutBalance = getSuperBalance(si.tokenOut);
 
-        require(tokenAmountIn <= bmul(si.tokenInBalance, MAX_IN_RATIO), "ERR_MAX_IN_RATIO");
+        require(tokenAmountIn <= StreamSwapLibrary.bmul(si.tokenInBalance, MAX_IN_RATIO), "ERR_MAX_IN_RATIO");
 
-        uint spotPriceBefore = calcSpotPrice(
+        uint spotPriceBefore = StreamSwapLibrary.calcSpotPrice(
                                     si.tokenInBalance,
                                     inRecord.denorm,
                                     si.tokenOutBalance,
@@ -723,7 +566,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
                                 );
         require(spotPriceBefore <= maxPrice, "ERR_BAD_LIMIT_PRICE");
 
-        tokenAmountOut = calcOutGivenIn(
+        tokenAmountOut = StreamSwapLibrary.calcOutGivenIn(
                             si.tokenInBalance,
                             inRecord.denorm,
                             si.tokenOutBalance,
@@ -733,7 +576,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
                         );
         require(tokenAmountOut >= minAmountOut, "ERR_LIMIT_OUT");
 
-        spotPriceAfter = calcSpotPrice(
+        spotPriceAfter = StreamSwapLibrary.calcSpotPrice(
                                 si.tokenInBalance,
                                 inRecord.denorm,
                                 si.tokenOutBalance,
@@ -742,15 +585,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
                             );
         require(spotPriceAfter >= spotPriceBefore, "ERR_MATH_APPROX");     
         require(spotPriceAfter <= maxPrice, "ERR_LIMIT_PRICE");
-        require(spotPriceBefore <= bdiv(tokenAmountIn, tokenAmountOut), "ERR_MATH_APPROX");
+        require(spotPriceBefore <= StreamSwapLibrary.bdiv(tokenAmountIn, tokenAmountOut), "ERR_MATH_APPROX");
 
         emit LOG_SWAP(msg.sender, tokenIn, tokenOut, tokenAmountIn, tokenAmountOut);
 
         _pullUnderlying(si.tokenIn, msg.sender, tokenAmountIn);
-        _pushUnderlying(si.tokenOut, msg.sender, tokenAmountOut);
+        _streamSwapContext.updateFlowRates(si.tokenIn, _records, si.tokenInBalance);
 
-        _updateFlowRates(si.tokenIn);
-        _updateFlowRates(si.tokenOut);
+        _pushUnderlying(si.tokenOut, msg.sender, tokenAmountOut);
+        _streamSwapContext.updateFlowRates(si.tokenOut, _records, si.tokenOutBalance);
 
         return (tokenAmountOut, spotPriceAfter);
     }
@@ -778,15 +621,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         require(_records[si.tokenOut].bound, "ERR_NOT_BOUND");
         require(_publicSwap, "ERR_SWAP_NOT_PUBLIC");
 
-        Record storage inRecord = _records[address(tokenIn)];
-        Record storage outRecord = _records[address(tokenOut)];
+        StreamSwapLibrary.Record storage inRecord = _records[address(tokenIn)];
+        StreamSwapLibrary.Record storage outRecord = _records[address(tokenOut)];
 
         si.tokenInBalance = getSuperBalance(si.tokenIn);
         si.tokenOutBalance = getSuperBalance(si.tokenOut);
 
-        require(tokenAmountOut <= bmul(si.tokenOutBalance, MAX_OUT_RATIO), "ERR_MAX_OUT_RATIO");
+        require(tokenAmountOut <= StreamSwapLibrary.bmul(si.tokenOutBalance, MAX_OUT_RATIO), "ERR_MAX_OUT_RATIO");
 
-        uint spotPriceBefore = calcSpotPrice(
+        uint spotPriceBefore = StreamSwapLibrary.calcSpotPrice(
                                     si.tokenInBalance,
                                     inRecord.denorm,
                                     si.tokenOutBalance,
@@ -795,7 +638,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
                                 );
         require(spotPriceBefore <= maxPrice, "ERR_BAD_LIMIT_PRICE");
 
-        tokenAmountIn = calcInGivenOut(
+        tokenAmountIn = StreamSwapLibrary.calcInGivenOut(
                             si.tokenInBalance,
                             inRecord.denorm,
                             si.tokenOutBalance,
@@ -805,7 +648,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
                         );
         require(tokenAmountIn <= maxAmountIn, "ERR_LIMIT_IN");
 
-        spotPriceAfter = calcSpotPrice(
+        spotPriceAfter = StreamSwapLibrary.calcSpotPrice(
                                 si.tokenInBalance,
                                 inRecord.denorm,
                                 si.tokenOutBalance,
@@ -814,15 +657,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
                             );
         require(spotPriceAfter >= spotPriceBefore, "ERR_MATH_APPROX");
         require(spotPriceAfter <= maxPrice, "ERR_LIMIT_PRICE");
-        require(spotPriceBefore <= bdiv(tokenAmountIn, tokenAmountOut), "ERR_MATH_APPROX");
+        require(spotPriceBefore <= StreamSwapLibrary.bdiv(tokenAmountIn, tokenAmountOut), "ERR_MATH_APPROX");
 
         emit LOG_SWAP(msg.sender, tokenIn, tokenOut, tokenAmountIn, tokenAmountOut);
 
         _pullUnderlying(si.tokenIn, msg.sender, tokenAmountIn);
-        _pushUnderlying(si.tokenOut, msg.sender, tokenAmountOut);
+        _streamSwapContext.updateFlowRates(si.tokenIn, _records, si.tokenInBalance);
 
-        _updateFlowRates(si.tokenIn);
-        _updateFlowRates(si.tokenOut);
+        _pushUnderlying(si.tokenOut, msg.sender, tokenAmountOut);
+        _streamSwapContext.updateFlowRates(si.tokenOut, _records, si.tokenOutBalance);
 
         return (tokenAmountIn, spotPriceAfter);
     }
@@ -837,13 +680,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
     {
         address superTokenIn = _underlyingToSuperToken[tokenIn];
 
+        uint tokenInBalance = getSuperBalance(superTokenIn);
+
         require(_finalized, "ERR_NOT_FINALIZED");
         require(_records[tokenIn].bound, "ERR_NOT_BOUND");
-        require(tokenAmountIn <= bmul(getSuperBalance(superTokenIn), MAX_IN_RATIO), "ERR_MAX_IN_RATIO");
+        require(tokenAmountIn <= StreamSwapLibrary.bmul(tokenInBalance, MAX_IN_RATIO), "ERR_MAX_IN_RATIO");
 
-        Record storage inRecord = _records[superTokenIn];
+        StreamSwapLibrary.Record storage inRecord = _records[superTokenIn];
 
-        poolAmountOut = calcPoolOutGivenSingleIn(
+        poolAmountOut = StreamSwapLibrary.calcPoolOutGivenSingleIn(
                             getSuperBalance(superTokenIn),
                             inRecord.denorm,
                             _totalSupply,
@@ -860,7 +705,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         _pushPoolShare(msg.sender, poolAmountOut);
         _pullUnderlying(superTokenIn, msg.sender, tokenAmountIn);
 
-        _updateFlowRates(superTokenIn);
+        _streamSwapContext.updateFlowRates(superTokenIn, _records, tokenInBalance);
 
         return poolAmountOut;
     }
@@ -873,13 +718,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
     {
         address superTokenIn = _underlyingToSuperToken[tokenIn];
 
+        uint tokenInBalance = getSuperBalance(superTokenIn);
+
         require(_finalized, "ERR_NOT_FINALIZED");
         require(_records[superTokenIn].bound, "ERR_NOT_BOUND");
 
-        Record storage inRecord = _records[superTokenIn];
+        StreamSwapLibrary.Record storage inRecord = _records[superTokenIn];
 
-        tokenAmountIn = calcSingleInGivenPoolOut(
-                            getSuperBalance(superTokenIn),
+        tokenAmountIn = StreamSwapLibrary.calcSingleInGivenPoolOut(
+                            tokenInBalance,
                             inRecord.denorm,
                             _totalSupply,
                             _totalWeight,
@@ -890,7 +737,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         require(tokenAmountIn != 0, "ERR_MATH_APPROX");
         require(tokenAmountIn <= maxAmountIn, "ERR_LIMIT_IN");
         
-        require(tokenAmountIn <= bmul(getSuperBalance(superTokenIn), MAX_IN_RATIO), "ERR_MAX_IN_RATIO");
+        require(tokenAmountIn <= StreamSwapLibrary.bmul(tokenInBalance, MAX_IN_RATIO), "ERR_MAX_IN_RATIO");
 
         emit LOG_JOIN(msg.sender, tokenIn, tokenAmountIn);
 
@@ -898,7 +745,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         _pushPoolShare(msg.sender, poolAmountOut);
         _pullUnderlying(superTokenIn, msg.sender, tokenAmountIn);
 
-        _updateFlowRates(superTokenIn);
+        _streamSwapContext.updateFlowRates(superTokenIn, _records, tokenInBalance);
 
         return tokenAmountIn;
     }
@@ -911,13 +758,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
     {
         address superTokenOut = _underlyingToSuperToken[tokenOut];
 
+        uint tokenOutBalance = getSuperBalance(superTokenOut);
+
         require(_finalized, "ERR_NOT_FINALIZED");
         require(_records[superTokenOut].bound, "ERR_NOT_BOUND");
 
-        Record storage outRecord = _records[superTokenOut];
+        StreamSwapLibrary.Record storage outRecord = _records[superTokenOut];
 
-        tokenAmountOut = calcSingleOutGivenPoolIn(
-                            getSuperBalance(superTokenOut),
+        tokenAmountOut = StreamSwapLibrary.calcSingleOutGivenPoolIn(
+                            tokenOutBalance,
                             outRecord.denorm,
                             _totalSupply,
                             _totalWeight,
@@ -927,9 +776,9 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
 
         require(tokenAmountOut >= minAmountOut, "ERR_LIMIT_OUT");
         
-        require(tokenAmountOut <= bmul(getSuperBalance(superTokenOut), MAX_OUT_RATIO), "ERR_MAX_OUT_RATIO");
+        require(tokenAmountOut <= StreamSwapLibrary.bmul(tokenOutBalance, MAX_OUT_RATIO), "ERR_MAX_OUT_RATIO");
 
-        uint exitFee = bmul(poolAmountIn, EXIT_FEE);
+        uint exitFee = StreamSwapLibrary.bmul(poolAmountIn, EXIT_FEE);
 
         emit LOG_EXIT(msg.sender, tokenOut, tokenAmountOut);
 
@@ -938,7 +787,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         _pushPoolShare(_factory, exitFee);
         _pushUnderlying(superTokenOut, msg.sender, tokenAmountOut);
 
-        _updateFlowRates(superTokenOut);
+        _streamSwapContext.updateFlowRates(superTokenOut, _records, tokenOutBalance);
 
         return tokenAmountOut;
     }
@@ -951,15 +800,16 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
     {
         address superTokenOut = _underlyingToSuperToken[tokenOut];
 
-        require(_finalized, "ERR_NOT_FINALIZED");
-        require(_records[tokenOut].bound, "ERR_NOT_BOUND");
-        require(tokenAmountOut <= bmul(getSuperBalance(superTokenOut), MAX_OUT_RATIO), "ERR_MAX_OUT_RATIO");
-
-        Record storage outRecord = _records[superTokenOut];
         uint tokenOutBalance = getSuperBalance(superTokenOut);
 
-        poolAmountIn = calcPoolInGivenSingleOut(
-                            getSuperBalance(superTokenOut),
+        require(_finalized, "ERR_NOT_FINALIZED");
+        require(_records[tokenOut].bound, "ERR_NOT_BOUND");
+        require(tokenAmountOut <= StreamSwapLibrary.bmul(tokenOutBalance, MAX_OUT_RATIO), "ERR_MAX_OUT_RATIO");
+
+        StreamSwapLibrary.Record storage outRecord = _records[superTokenOut];
+
+        poolAmountIn = StreamSwapLibrary.calcPoolInGivenSingleOut(
+                            tokenOutBalance,
                             outRecord.denorm,
                             _totalSupply,
                             _totalWeight,
@@ -970,7 +820,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         require(poolAmountIn != 0, "ERR_MATH_APPROX");
         require(poolAmountIn <= maxPoolAmountIn, "ERR_LIMIT_IN");
 
-        uint exitFee = bmul(poolAmountIn, EXIT_FEE);
+        uint exitFee = StreamSwapLibrary.bmul(poolAmountIn, EXIT_FEE);
 
         emit LOG_EXIT(msg.sender, tokenOut, tokenAmountOut);
 
@@ -979,7 +829,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken, BMath {
         _pushPoolShare(_factory, exitFee);
         _pushUnderlying(superTokenOut, msg.sender, tokenAmountOut);
 
-        _updateFlowRates(superTokenOut);
+        _streamSwapContext.updateFlowRates(superTokenOut, _records, tokenOutBalance);
 
         return poolAmountIn;
     }

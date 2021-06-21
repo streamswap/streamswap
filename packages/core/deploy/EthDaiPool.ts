@@ -10,17 +10,21 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const superfluidDeploy = await hre.deployments.get('Superfluid');
     const cfaDeploy = await hre.deployments.get('ConstantFlowAgreementV1');
 
+    console.log('deploy it with', superfluidDeploy.address, cfaDeploy.address)
+
     await deploy('StreamSwapFactory', {
         from: deployer,
-        gasLimit: 10000000,
-        args: [ superfluidDeploy, cfaDeploy ],
+        gasLimit: 12450000,
+        args: [ superfluidDeploy.address, cfaDeploy.address ],
     });
     
     const poolDeploy = await execute('StreamSwapFactory', {
         from: deployer
-    }, 'newBPool', []);
+    }, 'newBPool');
 
-    save('StreamSwapPool', {
+    //console.log(poolDeploy.events)
+
+    await save('StreamSwapPool', {
         abi: StreamSwapPool__factory.abi,
         address: poolDeploy.events![0]
     });
@@ -28,11 +32,14 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     // bind xETH
     await execute('StreamSwapPool', {
         from: deployer
-    }, 'bind', []);
+    }, 'bind');
 
     // bind xDAI
     await execute('StreamSwapPool', {
         from: deployer
-    }, 'bind', []);
+    }, 'bind');
 };
+
 export default func;
+func.tags = ['StreamSwapFactory', 'StreamSwapPool'];
+func.dependencies = ['Superfluid', 'ConstantFlowAgreementV1'];
