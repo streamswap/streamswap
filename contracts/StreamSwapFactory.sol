@@ -17,7 +17,7 @@ pragma solidity 0.7.6;
 
 import "./StreamSwapPool.sol";
 
-contract BFactory is BBronze {
+contract StreamSwapFactory is BBronze {
     event LOG_NEW_POOL(
         address indexed caller,
         address indexed pool
@@ -28,6 +28,7 @@ contract BFactory is BBronze {
         address indexed blabs
     );
 
+    StreamSwapFactoryHelper private immutable _helper;
     ISuperfluid public immutable _host;
     IConstantFlowAgreementV1 public immutable _cfa;
 
@@ -43,7 +44,7 @@ contract BFactory is BBronze {
         external
         returns (StreamSwapPool)
     {
-        StreamSwapPool bpool = new StreamSwapPool(_host, _cfa);
+        StreamSwapPool bpool = _helper.create(_host, _cfa);
         _isBPool[address(bpool)] = true;
         emit LOG_NEW_POOL(msg.sender, address(bpool));
         bpool.setController(msg.sender);
@@ -52,15 +53,16 @@ contract BFactory is BBronze {
 
     address private _blabs;
 
-    constructor(address host, address cfa) public {
+    constructor(StreamSwapFactoryHelper helper, ISuperfluid host, IConstantFlowAgreementV1 cfa) public {
         require(ISuperfluid(host).isAgreementClassListed(IConstantFlowAgreementV1(cfa)), 
             "ERR_BAD_SUPERFLUID");
         require(IConstantFlowAgreementV1(cfa).agreementType() == 
             keccak256("org.superfluid-finance.agreements.ConstantFlowAgreement.v1"), "ERR_BAD_CFA");
 
         _blabs = msg.sender;
-        _host = ISuperfluid(host);
-        _cfa = IConstantFlowAgreementV1(cfa);
+        _helper = helper;
+        _host = host;
+        _cfa = cfa;
     }
 
     function getBLabs()
@@ -85,5 +87,15 @@ contract BFactory is BBronze {
         uint collected = IERC20(pool).balanceOf(address(this));
         bool xfer = pool.transfer(_blabs, collected);
         require(xfer, "ERR_ERC20_FAILED");
+    }
+}
+
+// spliting this off because the contract is getting bigger
+contract StreamSwapFactoryHelper {
+    function create(ISuperfluid host, IConstantFlowAgreementV1 cfa)
+        external
+        returns (StreamSwapPool)
+    {
+        return new StreamSwapPool(host, cfa);
     }
 }
