@@ -1,0 +1,53 @@
+{
+  "name": "@streamtrade/core",
+  "version": "0.0.1",
+  "description": "streaming exchange app for continuous buy/sell",
+  "main": "index.js",
+  "scripts": {
+    "build": "npx hardhat typechain && npx tsc",
+    "clean": "rm -rf dist generated cache artifacts",
+    "test": "echo \\\\\\\"Error: no test specified\\\\\\\" && exit 1"
+  },
+  "contributors": [
+    {
+      "name": "Daniel Beal",
+      "email": "git@danb.email"
+    },
+    {
+      "name": "Matthew Conover",
+      "email": "git@mconover.dev"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KillerByte/streamtrade.git"
+  },
+  "license": "GPL-3.0",
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers@^0.3.0-beta.10",
+    "@nomiclabs/hardhat-etherscan": "^2.1.3",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@openzeppelin/contracts": "3.4.1",
+    "@superfluid-finance/ethereum-contracts": "^1.0.0-rc.4",
+    "@synthetixio/wei": "^1.0.2",
+    "@typechain/ethers-v5": "^7.0.1",
+    "@typechain/hardhat": "^2.0.2",
+    "@types/mocha": "^8.2.2",
+    "balancer-core": "git+https://github.com/balancer-labs/balancer-core.git",
+    "chai": "^4.3.4",
+    "configurable-rights-pool": "git+https://github.com/balancer-labs/configurable-rights-pool.git",
+    "ethereum-waffle": "^3.4.0",
+    "ethers": "^5.3.1",
+    "hardhat": "^2.4.0",
+    "hardhat-deploy": "^0.8.8",
+    "ts-node": "^10.0.0",
+    "typechain": "^5.0.0",
+    "typescript": "^4.3.4"
+  },
+  "dependencies": {
+    "ts-generator": "^0.1.1"
+  },
+  "bugs": {
+    "url": "https://github.com/KillerByte/streamtrade/issues"
+  }
+}

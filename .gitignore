@@ -1,6 +1,12 @@
 node_modules
 generated
+dist
+.next
 
 #Hardhat files
 cache
 artifacts
+
+# IDEs
+.idea
+.vscode

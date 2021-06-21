@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfg.json",
+  "compilerOptions": {
+    "outDir": "dist",
+  },
+  "types": [
+    "node"
+  ]
+}
