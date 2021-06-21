@@ -370,7 +370,8 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
             denorm: 0    // denorm will be validated
         });
         _superTokens.push(token);
-        _underlyingToSuperToken[token] = ISuperToken(token).getUnderlyingToken();
+        _underlyingToSuperToken[ISuperToken(token).getUnderlyingToken()] = token;
+        IERC20(ISuperToken(token).getUnderlyingToken()).approve(token, type(uint).max);
         rebind(token, balance, denorm);
     }
 
@@ -437,6 +438,8 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
             index: 0,
             denorm: 0
         });
+
+        IERC20(ISuperToken(token).getUnderlyingToken()).approve(token, 0);
 
         _pushUnderlying(token, msg.sender, StreamSwapLibrary.bsub(tokenBalance, tokenExitFee));
         _pushUnderlying(token, _factory, tokenExitFee);

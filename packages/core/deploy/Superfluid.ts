@@ -42,19 +42,28 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         args: [],
     });
 
+    console.log('hello its broken');
+
     await execute('Superfluid', {
-        from: deployer
+        from: deployer,
+        gasLimit: 12000000,
     }, 'registerAgreementClass', cfaDeploy.address);
 
     const tkaDeploy = await hre.deployments.get('TokenA');
     const tkbDeploy = await hre.deployments.get('TokenB');
 
+    console.log('hello its broken 1234');
+
     const xtkaExec = await execute('SuperTokenFactory', {
-        from: deployer
+        from: deployer,
+        gasLimit: 12000000,
     }, 'createERC20Wrapper(address,uint8,string,string)', tkaDeploy.address, 0, 'Super Token A', 'xTKA');
 
+    console.log('hello its broken 2');
+
     const xtkbExec = await execute('SuperTokenFactory', {
-        from: deployer
+        from: deployer,
+        gasLimit: 12000000,
     }, 'createERC20Wrapper(address,uint8,string,string)', tkbDeploy.address, 0, 'Super Token B', 'XTKB');
 
     const xtkaAddress = '0x' + xtkaExec.events![0].topics[1].slice(26);
@@ -69,6 +78,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         abi: SuperToken__factory.abi,
         address: xtkbAddress
     });
+
+    console.log('hello its broken 2');
 
     await execute('TokenA', {
         from: deployer

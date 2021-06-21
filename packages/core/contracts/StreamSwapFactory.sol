@@ -96,6 +96,8 @@ contract StreamSwapFactoryHelper {
         external
         returns (StreamSwapPool)
     {
-        return new StreamSwapPool(host, cfa);
+        StreamSwapPool bpool = new StreamSwapPool(host, cfa);
+        bpool.setController(msg.sender);
+        return bpool;
     }
 }
