@@ -23,6 +23,11 @@ export default () => (
         </a>
       </Link>
 
+      <a className={styles.card}>
+        <h2>Create Exchange &rarr;</h2>
+        <p>Create a new super token exchange.</p>
+      </a>
+
       <a href="" className={styles.card}>
         <h2>Documentation &rarr;</h2>
         <p>Learn about the inner workings of Streamswap.</p>
