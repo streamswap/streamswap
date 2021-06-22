@@ -1,8 +1,9 @@
-import styles from '../styles/Home.module.css';
-import Footer from '../components/Footer';
+import styles from '../styles/Exchange.module.css';
+import MainLayout from '../components/MainLayout';
+
 
 export default () => (
-  <div>
-  { Footer() }
-  </div>
+  <MainLayout title="Exchange">
+
+  </MainLayout>
 );
