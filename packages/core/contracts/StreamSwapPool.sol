@@ -159,6 +159,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         onlyHost
         returns (bytes memory newCtx)
     {
+        console.log("madeoff");
         newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
     }
 
@@ -174,6 +175,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         onlyHost
         returns (bytes memory newCtx)
     {
+        console.log("madeoff");
         newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
     }
 
@@ -189,6 +191,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         onlyHost
         returns (bytes memory newCtx)
     {
+        console.log("madeoff");
         newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
     }
 
@@ -580,9 +583,9 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         require(tokenAmountOut >= minAmountOut, "ERR_LIMIT_OUT");
 
         spotPriceAfter = StreamSwapLibrary.calcSpotPrice(
-                                si.tokenInBalance,
+                                StreamSwapLibrary.badd(si.tokenInBalance, tokenAmountIn),
                                 inRecord.denorm,
-                                si.tokenOutBalance,
+                                StreamSwapLibrary.bsub(si.tokenOutBalance, tokenAmountOut),
                                 outRecord.denorm,
                                 _swapFee
                             );
@@ -624,8 +627,8 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         require(_records[si.tokenOut].bound, "ERR_NOT_BOUND");
         require(_publicSwap, "ERR_SWAP_NOT_PUBLIC");
 
-        StreamSwapLibrary.Record storage inRecord = _records[address(tokenIn)];
-        StreamSwapLibrary.Record storage outRecord = _records[address(tokenOut)];
+        StreamSwapLibrary.Record storage inRecord = _records[address(si.tokenIn)];
+        StreamSwapLibrary.Record storage outRecord = _records[address(si.tokenOut)];
 
         si.tokenInBalance = getSuperBalance(si.tokenIn);
         si.tokenOutBalance = getSuperBalance(si.tokenOut);
@@ -652,9 +655,9 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         require(tokenAmountIn <= maxAmountIn, "ERR_LIMIT_IN");
 
         spotPriceAfter = StreamSwapLibrary.calcSpotPrice(
-                                si.tokenInBalance,
+                                StreamSwapLibrary.badd(si.tokenInBalance, tokenAmountIn),
                                 inRecord.denorm,
-                                si.tokenOutBalance,
+                                StreamSwapLibrary.bsub(si.tokenOutBalance, tokenAmountOut),
                                 outRecord.denorm,
                                 _swapFee
                             );
@@ -845,6 +848,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
     function _pullUnderlying(address superErc20, address from, uint amount)
         internal
     {
+        console.log("pull", superErc20, amount);
         IERC20 erc20 = IERC20(ISuperToken(superErc20).getUnderlyingToken());
         bool xfer = erc20.transferFrom(from, address(this), amount);
         require(xfer, "ERR_ERC20_FALSE");
@@ -854,6 +858,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
     function _pushUnderlying(address superErc20, address to, uint amount)
         internal
     {
+        console.log("push", superErc20, amount);
         ISuperToken(superErc20).downgrade(amount);
         IERC20 erc20 = IERC20(ISuperToken(superErc20).getUnderlyingToken());
         bool xfer = IERC20(erc20).transfer(to, amount);
