@@ -24,24 +24,6 @@
   text-decoration: underline;
 }
 
-.footer {
-  width: 100%;
-  height: 50px;
-  border-top: 1px solid #eaeaea;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.footer a {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-grow: 1;
-  border-left: 1px solid #eaeaea;
-  border-right: 1px solid #eaeaea;
-}
-
 .title {
   margin: 0;
   line-height: 1.15;
