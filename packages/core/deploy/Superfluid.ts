@@ -5,10 +5,23 @@ import { wei } from '@synthetixio/wei';
 
 import { SuperToken__factory } from '../generated/typechain/factories/SuperToken__factory';
 import { ethers } from 'ethers';
+import { DEPLOY_ERC1820_ADDR, DEPLOY_ERC1820_RAW } from '../utils/erc1820';
+
+
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const {deploy, execute, save} = hre.deployments;
     const {deployer} = await hre.getNamedAccounts();
+
+    // deploy erc1820, a dependency hidden deep
+    try {
+        const signer = await hre.ethers.getNamedSigner('deployer');
+        
+        await signer.sendTransaction({ to: DEPLOY_ERC1820_ADDR, value: wei(0.1).toBN()});
+        await signer.provider!.sendTransaction(DEPLOY_ERC1820_RAW);
+    } catch(err) {
+        console.warn('erc1820 failed deploy:', err);
+    }
 
     const sfDeploy = await deploy('Superfluid', {
         from: deployer,

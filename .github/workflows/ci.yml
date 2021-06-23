@@ -12,8 +12,11 @@ jobs:
         with:
           node-version: '14'
       - uses: actions/checkout@v2
-      - name: Build
+      - name: install deps
         run: |
           npm i -g lerna
           lerna bootstrap
-          lerna run build
+      - name: build
+        run: lerna run build
+      - name: test
+        run: lerna run test
