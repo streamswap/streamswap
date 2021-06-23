@@ -15,7 +15,7 @@ export default function encodeStreamSwapData(args: StreamSwapArgs[]): string {
 
     for (const arg of args) {
         raws.push(ethers.utils.defaultAbiCoder.encode(
-            ['address', 'address', 'uint', 'uint', 'uint'], 
+            ['address', 'uint', 'uint128', 'uint128'], 
             [arg.destSuperToken, arg.recipient, arg.inAmount.toBN(), arg.minRate.toBN(), arg.maxRate.toBN()]
         ));
     }

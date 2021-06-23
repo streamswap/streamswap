@@ -5,6 +5,7 @@ import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 
+import 'hardhat-gas-reporter';
 import 'hardhat-deploy';
 
 import { HardhatUserConfig } from 'hardhat/types';
@@ -83,6 +84,10 @@ const hhConfig: HardhatUserConfig = {
     dummy: {
       default: 1
     }
+  },
+  gasReporter: {
+    currency: 'CHF',
+    gasPrice: 21
   }
 };
 

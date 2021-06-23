@@ -130,6 +130,8 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         _streamSwapContext.host = host;
         _streamSwapContext.cfa = cfa;
 
+        _streamSwapContext.initialize();
+
         // balancer construct
         _controller = msg.sender;
         _factory = msg.sender;
@@ -159,7 +161,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         onlyHost
         returns (bytes memory newCtx)
     {
-        console.log("madeoff");
+        console.log("agreement create");
         newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
     }
 
@@ -175,7 +177,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         onlyHost
         returns (bytes memory newCtx)
     {
-        console.log("madeoff");
+        console.log("agreement update");
         newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
     }
 
@@ -189,10 +191,11 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
     )
         external override
         onlyHost
-        returns (bytes memory newCtx)
+        returns (bytes memory)
     {
-        console.log("madeoff");
-        newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
+        console.log("agreement term");
+        _streamSwapContext.makeTrade(_superToken, _ctx, _records);
+        return _ctx;
     }
 
     /**************************************************************************
@@ -370,7 +373,8 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         _records[token] = StreamSwapLibrary.Record({
             bound: true,
             index: _superTokens.length,
-            denorm: 0    // denorm will be validated
+            denorm: 0,    // denorm will be validated
+            balance: 0
         });
         _superTokens.push(token);
         _underlyingToSuperToken[ISuperToken(token).getUnderlyingToken()] = token;
@@ -391,6 +395,8 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         require(denorm >= MIN_WEIGHT, "ERR_MIN_WEIGHT");
         require(denorm <= MAX_WEIGHT, "ERR_MAX_WEIGHT");
 
+        StreamSwapLibrary.Record memory oldRecord = _records[token];
+
         // Adjust the denorm and totalWeight
         uint oldWeight = _records[token].denorm;
         if (denorm > oldWeight) {
@@ -403,6 +409,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
 
         // Adjust the balance record and actual token balance
         uint oldBalance = getSuperBalance(token);
+        _records[token].balance = balance;
         if (balance > oldBalance) {
             _pullUnderlying(token, msg.sender, StreamSwapLibrary.bsub(balance, oldBalance));
         } else if (balance < oldBalance) {
@@ -412,6 +419,8 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
             _pushUnderlying(token, msg.sender, StreamSwapLibrary.bsub(tokenBalanceWithdrawn, tokenExitFee));
             _pushUnderlying(token, _factory, tokenExitFee);
         }
+
+        _streamSwapContext.updateFlowRates(token, _records, oldRecord);
     }
 
     function unbind(address token)
@@ -439,8 +448,11 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         _records[token] = StreamSwapLibrary.Record({
             bound: false,
             index: 0,
-            denorm: 0
+            denorm: 0,
+            balance: 0
         });
+
+        // todo: wipe streams
 
         IERC20(ISuperToken(token).getUnderlyingToken()).approve(token, 0);
 
@@ -491,12 +503,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
 
         for (uint i = 0; i < _superTokens.length; i++) {
             address t = _superTokens[i];
+            StreamSwapLibrary.Record memory oldRecord = _records[t];
             uint bal = getSuperBalance(t);
             uint tokenAmountIn = StreamSwapLibrary.bmul(ratio, bal);
             require(tokenAmountIn != 0, "ERR_MATH_APPROX");
             require(tokenAmountIn <= maxAmountsIn[i], "ERR_LIMIT_IN");
+            _records[t].balance = StreamSwapLibrary.badd(bal, tokenAmountIn);
             emit LOG_JOIN(msg.sender, t, tokenAmountIn);
             _pullUnderlying(t, msg.sender, tokenAmountIn);
+            _streamSwapContext.updateFlowRates(t, _records, oldRecord);
         }
         _mintPoolShare(poolAmountOut);
         _pushPoolShare(msg.sender, poolAmountOut);
@@ -521,12 +536,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
 
         for (uint i = 0; i < _superTokens.length; i++) {
             address t = _superTokens[i];
+            StreamSwapLibrary.Record memory oldRecord = _records[t];
             uint bal = getSuperBalance(t);
             uint tokenAmountOut = StreamSwapLibrary.bmul(ratio, bal);
             require(tokenAmountOut != 0, "ERR_MATH_APPROX");
             require(tokenAmountOut >= minAmountsOut[i], "ERR_LIMIT_OUT");
+            _records[t].balance = StreamSwapLibrary.bsub(bal, tokenAmountOut);
             emit LOG_EXIT(msg.sender, t, tokenAmountOut);
             _pushUnderlying(t, msg.sender, tokenAmountOut);
+            _streamSwapContext.updateFlowRates(t, _records, oldRecord);
         }
 
     }
@@ -595,11 +613,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
 
         emit LOG_SWAP(msg.sender, tokenIn, tokenOut, tokenAmountIn, tokenAmountOut);
 
+        StreamSwapLibrary.Record memory oldInRecord = inRecord;
+        inRecord.balance = StreamSwapLibrary.badd(si.tokenInBalance, tokenAmountIn);
         _pullUnderlying(si.tokenIn, msg.sender, tokenAmountIn);
-        _streamSwapContext.updateFlowRates(si.tokenIn, _records, si.tokenInBalance);
+        _streamSwapContext.updateFlowRates(si.tokenIn, _records, oldInRecord);
 
+        StreamSwapLibrary.Record memory oldOutRecord = outRecord;
+        outRecord.balance = StreamSwapLibrary.bsub(si.tokenOutBalance, tokenAmountOut);
         _pushUnderlying(si.tokenOut, msg.sender, tokenAmountOut);
-        _streamSwapContext.updateFlowRates(si.tokenOut, _records, si.tokenOutBalance);
+        _streamSwapContext.updateFlowRates(si.tokenOut, _records, oldOutRecord);
 
         return (tokenAmountOut, spotPriceAfter);
     }
@@ -667,11 +689,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
 
         emit LOG_SWAP(msg.sender, tokenIn, tokenOut, tokenAmountIn, tokenAmountOut);
 
+        StreamSwapLibrary.Record memory oldInRecord = inRecord;
+        inRecord.balance = StreamSwapLibrary.badd(si.tokenInBalance, tokenAmountIn);
         _pullUnderlying(si.tokenIn, msg.sender, tokenAmountIn);
-        _streamSwapContext.updateFlowRates(si.tokenIn, _records, si.tokenInBalance);
+        _streamSwapContext.updateFlowRates(si.tokenIn, _records, oldInRecord);
 
+        StreamSwapLibrary.Record memory oldOutRecord = outRecord;
+        outRecord.balance = StreamSwapLibrary.bsub(si.tokenOutBalance, tokenAmountOut);
         _pushUnderlying(si.tokenOut, msg.sender, tokenAmountOut);
-        _streamSwapContext.updateFlowRates(si.tokenOut, _records, si.tokenOutBalance);
+        _streamSwapContext.updateFlowRates(si.tokenOut, _records, oldOutRecord);
 
         return (tokenAmountIn, spotPriceAfter);
     }
@@ -695,7 +721,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         StreamSwapLibrary.Record storage inRecord = _records[superTokenIn];
 
         poolAmountOut = StreamSwapLibrary.calcPoolOutGivenSingleIn(
-                            getSuperBalance(superTokenIn),
+                            tokenInBalance,
                             inRecord.denorm,
                             _totalSupply,
                             _totalWeight,
@@ -705,13 +731,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
 
         require(poolAmountOut >= minPoolAmountOut, "ERR_LIMIT_OUT");
 
+        inRecord.balance = StreamSwapLibrary.badd(tokenInBalance, tokenAmountIn);
+
         emit LOG_JOIN(msg.sender, tokenIn, tokenAmountIn);
 
         _mintPoolShare(poolAmountOut);
         _pushPoolShare(msg.sender, poolAmountOut);
         _pullUnderlying(superTokenIn, msg.sender, tokenAmountIn);
 
-        _streamSwapContext.updateFlowRates(superTokenIn, _records, tokenInBalance);
+        _streamSwapContext.updateFlowRates(superTokenIn, _records, StreamSwapLibrary.Record(true, 0, inRecord.denorm, tokenInBalance));
 
         return poolAmountOut;
     }
@@ -745,13 +773,15 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         
         require(tokenAmountIn <= StreamSwapLibrary.bmul(tokenInBalance, MAX_IN_RATIO), "ERR_MAX_IN_RATIO");
 
+        inRecord.balance = StreamSwapLibrary.badd(tokenInBalance, tokenAmountIn);
+
         emit LOG_JOIN(msg.sender, tokenIn, tokenAmountIn);
 
         _mintPoolShare(poolAmountOut);
         _pushPoolShare(msg.sender, poolAmountOut);
         _pullUnderlying(superTokenIn, msg.sender, tokenAmountIn);
 
-        _streamSwapContext.updateFlowRates(superTokenIn, _records, tokenInBalance);
+        _streamSwapContext.updateFlowRates(superTokenIn, _records, StreamSwapLibrary.Record(true, 0, inRecord.denorm, tokenInBalance));
 
         return tokenAmountIn;
     }
@@ -784,6 +814,8 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         
         require(tokenAmountOut <= StreamSwapLibrary.bmul(tokenOutBalance, MAX_OUT_RATIO), "ERR_MAX_OUT_RATIO");
 
+        outRecord.balance = StreamSwapLibrary.bsub(tokenOutBalance, tokenAmountOut);
+
         uint exitFee = StreamSwapLibrary.bmul(poolAmountIn, EXIT_FEE);
 
         emit LOG_EXIT(msg.sender, tokenOut, tokenAmountOut);
@@ -793,7 +825,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         _pushPoolShare(_factory, exitFee);
         _pushUnderlying(superTokenOut, msg.sender, tokenAmountOut);
 
-        _streamSwapContext.updateFlowRates(superTokenOut, _records, tokenOutBalance);
+        _streamSwapContext.updateFlowRates(superTokenOut, _records, StreamSwapLibrary.Record(true, 0, outRecord.denorm, tokenOutBalance));
 
         return tokenAmountOut;
     }
@@ -826,6 +858,8 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         require(poolAmountIn != 0, "ERR_MATH_APPROX");
         require(poolAmountIn <= maxPoolAmountIn, "ERR_LIMIT_IN");
 
+        outRecord.balance = StreamSwapLibrary.bsub(tokenOutBalance, tokenAmountOut);
+
         uint exitFee = StreamSwapLibrary.bmul(poolAmountIn, EXIT_FEE);
 
         emit LOG_EXIT(msg.sender, tokenOut, tokenAmountOut);
@@ -835,7 +869,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         _pushPoolShare(_factory, exitFee);
         _pushUnderlying(superTokenOut, msg.sender, tokenAmountOut);
 
-        _streamSwapContext.updateFlowRates(superTokenOut, _records, tokenOutBalance);
+        _streamSwapContext.updateFlowRates(superTokenOut, _records, StreamSwapLibrary.Record(true, 0, outRecord.denorm, tokenOutBalance));
 
         return poolAmountIn;
     }

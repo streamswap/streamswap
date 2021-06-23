@@ -35,6 +35,19 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     await execute('Superfluid', {
         from: deployer
     }, 'updateSuperTokenFactory', sfFactoryDeploy.address);
+
+    const sfGovDeploy = await deploy('SuperfluidOwnableGovernance', {
+        from: deployer
+    });
+
+    await execute('SuperfluidOwnableGovernance', {
+        from: deployer,
+        gasLimit: 12000000,
+    }, 'setCFAv1LiquidationPeriod', sfDeploy.address!, ethers.constants.AddressZero, 86400);
+
+    await execute('Superfluid', {
+        from: deployer
+    }, 'replaceGovernance', sfGovDeploy.address);
     
     const cfaDeploy = await deploy('ConstantFlowAgreementV1', {
         from: deployer,
@@ -42,32 +55,33 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         args: [],
     });
 
-    console.log('hello its broken');
-
-    await execute('Superfluid', {
+    await execute('SuperfluidOwnableGovernance', {
         from: deployer,
         gasLimit: 12000000,
-    }, 'registerAgreementClass', cfaDeploy.address);
+    }, 'registerAgreementClass', sfDeploy.address!, cfaDeploy.address);
 
     const tkaDeploy = await hre.deployments.get('TokenA');
     const tkbDeploy = await hre.deployments.get('TokenB');
-
-    console.log('hello its broken 1234');
+    const tkcDeploy = await hre.deployments.get('TokenC');
 
     const xtkaExec = await execute('SuperTokenFactory', {
         from: deployer,
         gasLimit: 12000000,
     }, 'createERC20Wrapper(address,uint8,string,string)', tkaDeploy.address, 0, 'Super Token A', 'xTKA');
 
-    console.log('hello its broken 2');
-
     const xtkbExec = await execute('SuperTokenFactory', {
         from: deployer,
         gasLimit: 12000000,
     }, 'createERC20Wrapper(address,uint8,string,string)', tkbDeploy.address, 0, 'Super Token B', 'XTKB');
 
+    const xtkcExec = await execute('SuperTokenFactory', {
+        from: deployer,
+        gasLimit: 12000000,
+    }, 'createERC20Wrapper(address,uint8,string,string)', tkcDeploy.address, 0, 'Super Token C', 'XTKC');
+
     const xtkaAddress = '0x' + xtkaExec.events![0].topics[1].slice(26);
     const xtkbAddress = '0x' + xtkbExec.events![0].topics[1].slice(26);
+    const xtkcAddress = '0x' + xtkcExec.events![0].topics[1].slice(26);
 
     await save('SuperTokenA', {
         abi: SuperToken__factory.abi,
@@ -79,7 +93,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         address: xtkbAddress
     });
 
-    console.log('hello its broken 2');
+    await save('SuperTokenC', {
+        abi: SuperToken__factory.abi,
+        address: xtkcAddress
+    });
 
     await execute('TokenA', {
         from: deployer
@@ -89,11 +106,19 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         from: deployer
     }, 'approve', xtkbAddress, ethers.constants.MaxInt256);
 
+    await execute('TokenC', {
+        from: deployer
+    }, 'approve', xtkcAddress, ethers.constants.MaxInt256);
+
     await execute('SuperTokenA', {
         from: deployer
     }, 'upgrade', wei(5000).toBN());
 
     await execute('SuperTokenB', {
+        from: deployer
+    }, 'upgrade', wei(5000).toBN());
+
+    await execute('SuperTokenC', {
         from: deployer
     }, 'upgrade', wei(5000).toBN());
 };

@@ -9,8 +9,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const {deploy, execute, save} = hre.deployments;
     const {deployer} = await hre.getNamedAccounts();
 
-    console.log('hello its broken');
-
     const superfluidDeploy = await hre.deployments.get('Superfluid');
     const cfaDeploy = await hre.deployments.get('ConstantFlowAgreementV1');
 
@@ -43,6 +41,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     const tkaDeploy = await hre.deployments.get('SuperTokenA');
     const tkbDeploy = await hre.deployments.get('SuperTokenB');
+    const tkcDeploy = await hre.deployments.get('SuperTokenC');
 
     await execute('TokenA', {
         from: deployer
@@ -52,15 +51,24 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         from: deployer
     }, 'approve', poolAddress, ethers.constants.MaxUint256);
 
+    await execute('TokenC', {
+        from: deployer
+    }, 'approve', poolAddress, ethers.constants.MaxUint256);
+
     // bind xTKA
     await execute('StreamSwapPool', {
         from: deployer
-    }, 'bind', tkaDeploy.address, wei(500).toBN(), wei(5).toBN());
+    }, 'bind', tkaDeploy.address, wei(500).toBN(), wei(2).toBN());
 
     // bind xTKB
     await execute('StreamSwapPool', {
         from: deployer
-    }, 'bind', tkbDeploy.address, wei(500).toBN(), wei(5).toBN());
+    }, 'bind', tkbDeploy.address, wei(500).toBN(), wei(2).toBN());
+
+    // bind xTKB
+    await execute('StreamSwapPool', {
+        from: deployer
+    }, 'bind', tkcDeploy.address, wei(500).toBN(), wei(4).toBN());
 
     // finalize, which generates new pool tokens
     await execute('StreamSwapPool', {

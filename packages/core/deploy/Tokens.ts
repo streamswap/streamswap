@@ -20,6 +20,13 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         contract: 'TestToken',
         args: ['Token B', 'TKB', wei(10000).toBN()],
     });
+
+    await deploy('TokenC', {
+        from: deployer,
+        gasLimit: 10000000,
+        contract: 'TestToken',
+        args: ['Token C', 'TKC', wei(10000).toBN()],
+    });
 };
 
 export default func;
