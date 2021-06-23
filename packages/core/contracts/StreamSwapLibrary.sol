@@ -100,6 +100,29 @@ library StreamSwapLibrary {
         return ssas;
     }
 
+    // link entry 1 to entry 2 sequentially in the list for superToken
+    function updateSuperTokenPointers(Context storage ctx, address superToken, uint64 idx1, uint64 idx2) internal {
+
+        if (idx1 == 0) {
+            ctx.superTokenToArgs[superToken] = idx2;
+            return;
+        }
+
+        if (ctx.streamSwapState[idx1].srcSuperToken == superToken) {
+            ctx.streamSwapState[idx1].nextForSrcSuperToken = idx2;
+        }
+        else {
+            ctx.streamSwapState[idx1].nextForDestSuperToken = idx2;
+        }
+
+        if (ctx.streamSwapState[idx2].srcSuperToken == superToken) {
+            ctx.streamSwapState[idx2].prevForSrcSuperToken = idx1;
+        }
+        else {
+            ctx.streamSwapState[idx2].prevForDestSuperToken = idx1;
+        }
+    }
+
     function initialize(Context storage ctx) public {
         ctx.streamSwapState.push(StreamSwapState(address(0), address(0), address(0), 0,0,0,0,0,0,0,0));
     }
@@ -134,8 +157,8 @@ library StreamSwapLibrary {
         if (prevArgs.destSuperToken != args.destSuperToken) {
 
             if (prevArgs.destSuperToken != address(0)) {
-                (,int96 prevTokenCurOutFlow,,) = ctx.cfa.getFlow(ISuperToken(prevArgs.destSuperToken), address(this), args.sender);
-                console.log("got prev token flow", uint(prevTokenCurOutFlow), oldOutRate);
+                (,int96 prevTokenCurOutFlow,,) = ctx.cfa.getFlow(ISuperToken(prevArgs.destSuperToken), address(this), prevArgs.sender);
+                console.log("got prev token flow", prevArgs.destSuperToken, uint(prevTokenCurOutFlow), oldOutRate);
                 // sanity
                 require(uint256(prevTokenCurOutFlow) >= oldOutRate, "ERR_IMPOSSIBLE_RATE");
 
@@ -149,7 +172,7 @@ library StreamSwapLibrary {
                             ctx.cfa.deleteFlow.selector,
                             prevArgs.destSuperToken,
                             address(this), // for some reason deleteFlow is the only function that takes a sender parameter
-                            args.sender,
+                            prevArgs.sender,
                             new bytes(0) // placeholder
                         ),
                         "0x",
@@ -165,7 +188,7 @@ library StreamSwapLibrary {
                         abi.encodeWithSelector(
                             ctx.cfa.updateFlow.selector,
                             prevArgs.destSuperToken,
-                            args.sender,
+                            prevArgs.sender,
                             uint256(prevTokenCurOutFlow) - oldOutRate,
                             new bytes(0) // placeholder
                         ),
@@ -225,9 +248,9 @@ library StreamSwapLibrary {
 
         uint inSum = 0;
 
-        uint curStateIdx = ctx.accountStreamToArgs[context.msgSender][address(superToken)];
+        uint64[2] memory curStateIdx = [ctx.accountStreamToArgs[context.msgSender][address(superToken)], 0];
 
-        console.log("found existing?", curStateIdx > 0);
+        console.log("found existing?", curStateIdx[0] > 0);
 
         for (uint i = 0;i < args.length;i++) {
             require(args[i].inAmount > 0, "ERR_INVALID_AMOUNT");
@@ -241,9 +264,9 @@ library StreamSwapLibrary {
 
             console.log("got super balances", state.srcBalance, state.destBalance);
 
-            if (curStateIdx != 0) {
+            if (curStateIdx[0] != 0) {
                 // update in place
-                StreamSwapState storage entry = ctx.streamSwapState[curStateIdx];
+                StreamSwapState storage entry = ctx.streamSwapState[curStateIdx[0]];
                 StreamSwapState memory newEntry = StreamSwapState({
                     srcSuperToken: address(superToken),
                     destSuperToken: args[i].destSuperToken,
@@ -262,21 +285,12 @@ library StreamSwapLibrary {
 
                 // update dest super token if it has changed
                 if (args[i].destSuperToken != entry.destSuperToken) {
-                    if(entry.prevForDestSuperToken != 0) {
-                        ctx.superTokenToArgs[entry.destSuperToken] = entry.nextForDestSuperToken;
-                    }
-                    else {
-                        ctx.streamSwapState[entry.prevForDestSuperToken].nextForDestSuperToken = entry.nextForDestSuperToken;
-                    }
-
-                    if(entry.nextForDestSuperToken != 0) {
-                        ctx.streamSwapState[entry.nextForDestSuperToken].prevForDestSuperToken = entry.prevForDestSuperToken;
-                    }
-
-                    entry.nextForDestSuperToken = ctx.superTokenToArgs[args[i].destSuperToken];
-                    entry.prevForDestSuperToken = 0;
+                    updateSuperTokenPointers(ctx, entry.destSuperToken, entry.prevForDestSuperToken, entry.nextForDestSuperToken);
 
                     entry.destSuperToken = args[i].destSuperToken;
+                    uint64 prevHead = ctx.superTokenToArgs[args[i].destSuperToken];
+                    updateSuperTokenPointers(ctx, args[i].destSuperToken, curStateIdx[0], prevHead);
+                    updateSuperTokenPointers(ctx, args[i].destSuperToken, 0, curStateIdx[0]);
                 }
 
                 // update args
@@ -284,7 +298,8 @@ library StreamSwapLibrary {
                 entry.minRate = args[i].minRate;
                 entry.maxRate = args[i].maxRate;
 
-                curStateIdx = entry.nextSenderAccount;
+                curStateIdx[1] = curStateIdx[0];
+                curStateIdx[0] = entry.nextSenderAccount;
             }
             else {
                 // new stream swap
@@ -304,32 +319,37 @@ library StreamSwapLibrary {
                     nextSenderAccount: 0
                 });
 
-                newSfCtx = updateTrade(ctx, superToken, newSfCtx, newEntry, ctx.streamSwapState[0], state);
+                StreamSwapState storage emptyEntry = ctx.streamSwapState[0];
+
+                newSfCtx = updateTrade(ctx, superToken, newSfCtx, newEntry, emptyEntry, state);
 
                 ctx.streamSwapState.push(newEntry);
 
-                uint64 pos = uint64(ctx.streamSwapState.length);
+                uint64 pos = uint64(ctx.streamSwapState.length - 1);
 
-                if (curStateIdx > 0) {
-                    ctx.streamSwapState[curStateIdx].nextSenderAccount = pos;
+                if (curStateIdx[1] > 0) {
+                    ctx.streamSwapState[curStateIdx[1]].nextSenderAccount = pos;
                 }
                 else {
                     ctx.accountStreamToArgs[context.msgSender][address(superToken)] = pos;
                 }
 
-                ctx.superTokenToArgs[address(superToken)] = pos;
-                ctx.superTokenToArgs[args[i].destSuperToken] = pos;
+                updateSuperTokenPointers(ctx, address(superToken), pos, newEntry.nextForSrcSuperToken);
+                updateSuperTokenPointers(ctx, address(superToken), 0, pos);
 
-                curStateIdx = pos;
+                updateSuperTokenPointers(ctx, args[i].destSuperToken, pos, newEntry.nextForDestSuperToken);
+                updateSuperTokenPointers(ctx, args[i].destSuperToken, 0, pos);
+
+                curStateIdx[1] = pos;
             }
         }
 
         console.log("done with existing ids");
 
-        while (curStateIdx != 0) {
+        while (curStateIdx[0] != 0) {
             console.log("pop");
 
-            StreamSwapState storage entry = ctx.streamSwapState[curStateIdx];
+            StreamSwapState storage entry = ctx.streamSwapState[curStateIdx[0]];
 
             AccountState memory state = AccountState(
                 records[address(superToken)].balance, records[address(superToken)].denorm, 
@@ -340,32 +360,20 @@ library StreamSwapLibrary {
             newSfCtx = updateTrade(ctx, superToken, newSfCtx, ctx.streamSwapState[0], entry, state);
 
             // src super token list
-            if(entry.prevForSrcSuperToken != 0) {
-                ctx.streamSwapState[entry.prevForSrcSuperToken].nextForSrcSuperToken = entry.nextForSrcSuperToken;
+            updateSuperTokenPointers(ctx, address(superToken), entry.prevForSrcSuperToken, entry.nextForSrcSuperToken);
+            updateSuperTokenPointers(ctx, entry.destSuperToken, entry.prevForDestSuperToken, entry.nextForDestSuperToken);
+
+            uint64 nextStateIdx = entry.nextSenderAccount;
+            ctx.streamSwapState[curStateIdx[0]] = ctx.streamSwapState[0];
+
+            if(curStateIdx[1] > 0) {
+                ctx.streamSwapState[curStateIdx[1]].nextSenderAccount = 0;
             }
             else {
-                ctx.superTokenToArgs[entry.destSuperToken] = entry.nextForSrcSuperToken;
+                ctx.accountStreamToArgs[context.msgSender][address(superToken)] = 0;
             }
 
-            if(entry.nextForSrcSuperToken != 0) {
-                ctx.streamSwapState[entry.nextForSrcSuperToken].prevForSrcSuperToken = entry.prevForSrcSuperToken;
-            }
-
-            // dest super token list
-            if(entry.prevForDestSuperToken != 0) {
-                ctx.streamSwapState[entry.prevForDestSuperToken].nextForDestSuperToken = entry.nextForDestSuperToken;
-            }
-            else {
-                ctx.superTokenToArgs[entry.destSuperToken] = entry.nextForDestSuperToken;
-            }
-
-            if(entry.nextForDestSuperToken != 0) {
-                ctx.streamSwapState[entry.nextForDestSuperToken].prevForDestSuperToken = entry.prevForDestSuperToken;
-            }
-
-            uint nextStateIdx = entry.nextSenderAccount;
-            ctx.streamSwapState[curStateIdx] = ctx.streamSwapState[0];
-            curStateIdx = nextStateIdx;
+            curStateIdx[0] = nextStateIdx;
         }
 
         console.log("final check");
@@ -381,7 +389,10 @@ library StreamSwapLibrary {
     {
         uint curIdx = ctx.superTokenToArgs[superToken];
 
+        console.log("update flow rates");
+
         while (curIdx > 0) {
+            console.log("doing one", curIdx);
             StreamSwapState memory entry = ctx.streamSwapState[curIdx];
 
             // this is basically a shorter version of what happens in the updateTrade above
@@ -392,12 +403,12 @@ library StreamSwapLibrary {
             uint oldOutRate;
             uint newOutRate;
             if(superToken == entry.srcSuperToken) {
-                uint oldOutRate = calcOutGivenIn(
+                oldOutRate = calcOutGivenIn(
                     prevRecord.balance, prevRecord.denorm, 
                     records[entry.destSuperToken].balance, records[entry.destSuperToken].denorm, 
                     entry.inAmount, 0);
 
-                uint newOutRate = calcOutGivenIn(
+                newOutRate = calcOutGivenIn(
                     records[superToken].balance, records[superToken].denorm, 
                     records[entry.destSuperToken].balance, records[entry.destSuperToken].denorm, 
                     entry.inAmount, 0);
@@ -405,12 +416,12 @@ library StreamSwapLibrary {
                 curIdx = entry.nextForSrcSuperToken;
             }
             else {
-                uint oldOutRate = calcOutGivenIn(
+                oldOutRate = calcOutGivenIn(
                     records[entry.srcSuperToken].balance, records[entry.srcSuperToken].denorm, 
                     prevRecord.balance, prevRecord.denorm, 
                     entry.inAmount, 0);
 
-                uint newOutRate = calcOutGivenIn(
+                newOutRate = calcOutGivenIn(
                     records[entry.srcSuperToken].balance, records[entry.srcSuperToken].denorm, 
                     records[superToken].balance, records[superToken].denorm, 
                     entry.inAmount, 0);

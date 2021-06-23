@@ -63,7 +63,6 @@ describe('StreamSwapPool', function() {
     ]), 
     encodeStreamSwapData([{
       destSuperToken: superTokenB!.address,
-      recipient: myAddress,
       inAmount: TESTING_FLOW_RATE,
       minRate: wei(0),
       maxRate: wei(100)
@@ -94,7 +93,6 @@ describe('StreamSwapPool', function() {
     ]), 
     encodeStreamSwapData([{
       destSuperToken: superTokenB!.address,
-      recipient: myAddress,
       inAmount: TESTING_FLOW_RATE.mul(2),
       minRate: wei(0),
       maxRate: wei(100)
@@ -110,17 +108,17 @@ describe('StreamSwapPool', function() {
     ]), 
     encodeStreamSwapData([{
       destSuperToken: superTokenB!.address,
-      recipient: myAddress,
       inAmount: TESTING_FLOW_RATE,
       minRate: wei(0),
       maxRate: wei(100)
     }, {
       destSuperToken: superTokenC!.address,
-      recipient: myAddress,
       inAmount: TESTING_FLOW_RATE,
       minRate: wei(0),
       maxRate: wei(100)
     }]));
+
+    expect(wei(await cfa!.getNetFlow(superTokenC!.address, myAddress)).toNumber()).to.be.greaterThan(0);
   });
 
   it('should end all streams cleanly', async () => {
