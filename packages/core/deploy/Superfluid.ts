@@ -5,10 +5,23 @@ import { wei } from '@synthetixio/wei';
 
 import { SuperToken__factory } from '../generated/typechain/factories/SuperToken__factory';
 import { ethers } from 'ethers';
+import { DEPLOY_ERC1820_ADDR, DEPLOY_ERC1820_RAW } from '../utils/erc1820';
+
+
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const {deploy, execute, save} = hre.deployments;
     const {deployer} = await hre.getNamedAccounts();
+
+    // deploy erc1820, a dependency hidden deep
+    try {
+        const signer = await hre.ethers.getNamedSigner('deployer');
+        
+        await signer.sendTransaction({ to: DEPLOY_ERC1820_ADDR, value: wei(0.1).toBN()});
+        await signer.provider!.sendTransaction(DEPLOY_ERC1820_RAW);
+    } catch(err) {
+        console.warn('erc1820 failed deploy:', err);
+    }
 
     const sfDeploy = await deploy('Superfluid', {
         from: deployer,
@@ -35,6 +48,19 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     await execute('Superfluid', {
         from: deployer
     }, 'updateSuperTokenFactory', sfFactoryDeploy.address);
+
+    const sfGovDeploy = await deploy('SuperfluidOwnableGovernance', {
+        from: deployer
+    });
+
+    await execute('SuperfluidOwnableGovernance', {
+        from: deployer,
+        gasLimit: 12000000,
+    }, 'setCFAv1LiquidationPeriod', sfDeploy.address!, ethers.constants.AddressZero, 86400);
+
+    await execute('Superfluid', {
+        from: deployer
+    }, 'replaceGovernance', sfGovDeploy.address);
     
     const cfaDeploy = await deploy('ConstantFlowAgreementV1', {
         from: deployer,
@@ -42,23 +68,33 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         args: [],
     });
 
-    await execute('Superfluid', {
-        from: deployer
-    }, 'registerAgreementClass', cfaDeploy.address);
+    await execute('SuperfluidOwnableGovernance', {
+        from: deployer,
+        gasLimit: 12000000,
+    }, 'registerAgreementClass', sfDeploy.address!, cfaDeploy.address);
 
     const tkaDeploy = await hre.deployments.get('TokenA');
     const tkbDeploy = await hre.deployments.get('TokenB');
+    const tkcDeploy = await hre.deployments.get('TokenC');
 
     const xtkaExec = await execute('SuperTokenFactory', {
-        from: deployer
+        from: deployer,
+        gasLimit: 12000000,
     }, 'createERC20Wrapper(address,uint8,string,string)', tkaDeploy.address, 0, 'Super Token A', 'xTKA');
 
     const xtkbExec = await execute('SuperTokenFactory', {
-        from: deployer
+        from: deployer,
+        gasLimit: 12000000,
     }, 'createERC20Wrapper(address,uint8,string,string)', tkbDeploy.address, 0, 'Super Token B', 'XTKB');
+
+    const xtkcExec = await execute('SuperTokenFactory', {
+        from: deployer,
+        gasLimit: 12000000,
+    }, 'createERC20Wrapper(address,uint8,string,string)', tkcDeploy.address, 0, 'Super Token C', 'XTKC');
 
     const xtkaAddress = '0x' + xtkaExec.events![0].topics[1].slice(26);
     const xtkbAddress = '0x' + xtkbExec.events![0].topics[1].slice(26);
+    const xtkcAddress = '0x' + xtkcExec.events![0].topics[1].slice(26);
 
     await save('SuperTokenA', {
         abi: SuperToken__factory.abi,
@@ -70,6 +106,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         address: xtkbAddress
     });
 
+    await save('SuperTokenC', {
+        abi: SuperToken__factory.abi,
+        address: xtkcAddress
+    });
+
     await execute('TokenA', {
         from: deployer
     }, 'approve', xtkaAddress, ethers.constants.MaxInt256);
@@ -78,11 +119,19 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         from: deployer
     }, 'approve', xtkbAddress, ethers.constants.MaxInt256);
 
+    await execute('TokenC', {
+        from: deployer
+    }, 'approve', xtkcAddress, ethers.constants.MaxInt256);
+
     await execute('SuperTokenA', {
         from: deployer
     }, 'upgrade', wei(5000).toBN());
 
     await execute('SuperTokenB', {
+        from: deployer
+    }, 'upgrade', wei(5000).toBN());
+
+    await execute('SuperTokenC', {
         from: deployer
     }, 'upgrade', wei(5000).toBN());
 };

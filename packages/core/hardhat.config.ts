@@ -5,6 +5,7 @@ import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 
+import 'hardhat-gas-reporter';
 import 'hardhat-deploy';
 
 import { HardhatUserConfig } from 'hardhat/types';
@@ -34,9 +35,9 @@ const hhConfig: HardhatUserConfig = {
       accounts: {
         mnemonic: 'enrich genius online man glue impact narrow exact veteran real fiction affair'
       },
-      forking: {
-        url: process.env['ETH_RPC'] || 'http://eth.k8s:8545',
-      }
+      forking: process.env['ETH_RPC'] ? {
+        url: process.env['ETH_RPC']
+      } : undefined
     },
     mainnet: {
       live: true,
@@ -46,7 +47,7 @@ const hhConfig: HardhatUserConfig = {
 
   typechain: {
     target: 'ethers-v5',
-    outDir: 'generated/typechain'
+    outDir: './generated/typechain'
   },
   solidity: {
     compilers: [
@@ -83,6 +84,10 @@ const hhConfig: HardhatUserConfig = {
     dummy: {
       default: 1
     }
+  },
+  gasReporter: {
+    currency: 'CHF',
+    gasPrice: 21
   }
 };
 

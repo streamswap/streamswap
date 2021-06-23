@@ -2,6 +2,8 @@ import {HardhatRuntimeEnvironment} from 'hardhat/types';
 import {DeployFunction} from 'hardhat-deploy/types';
 
 import { StreamSwapPool__factory } from '../generated/typechain/factories/StreamSwapPool__factory';
+import { wei } from '@synthetixio/wei';
+import { ethers } from 'hardhat';
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const {deploy, execute, save} = hre.deployments;
@@ -10,34 +12,68 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const superfluidDeploy = await hre.deployments.get('Superfluid');
     const cfaDeploy = await hre.deployments.get('ConstantFlowAgreementV1');
 
-    console.log('deploy it with', superfluidDeploy.address, cfaDeploy.address)
+    const streamSwapLibraryDeploy = await deploy('StreamSwapLibrary', {
+        from: deployer
+    });
+
+    const streamSwapFactoryHelperDeploy = await deploy('StreamSwapFactoryHelper', {
+        from: deployer,
+        libraries: {
+            StreamSwapLibrary: streamSwapLibraryDeploy.address
+        }
+    });
 
     await deploy('StreamSwapFactory', {
         from: deployer,
-        gasLimit: 12450000,
-        args: [ superfluidDeploy.address, cfaDeploy.address ],
+        args: [ streamSwapFactoryHelperDeploy.address, superfluidDeploy.address, cfaDeploy.address ],
     });
-    
+
     const poolDeploy = await execute('StreamSwapFactory', {
         from: deployer
     }, 'newBPool');
 
-    //console.log(poolDeploy.events)
+    const poolAddress = '0x' + poolDeploy.events![0].topics[1].slice(26);
 
     await save('StreamSwapPool', {
         abi: StreamSwapPool__factory.abi,
-        address: poolDeploy.events![0]
+        address: poolAddress
     });
 
-    // bind xETH
-    await execute('StreamSwapPool', {
-        from: deployer
-    }, 'bind');
+    const tkaDeploy = await hre.deployments.get('SuperTokenA');
+    const tkbDeploy = await hre.deployments.get('SuperTokenB');
+    const tkcDeploy = await hre.deployments.get('SuperTokenC');
 
-    // bind xDAI
+    await execute('TokenA', {
+        from: deployer
+    }, 'approve', poolAddress, ethers.constants.MaxUint256);
+
+    await execute('TokenB', {
+        from: deployer
+    }, 'approve', poolAddress, ethers.constants.MaxUint256);
+
+    await execute('TokenC', {
+        from: deployer
+    }, 'approve', poolAddress, ethers.constants.MaxUint256);
+
+    // bind xTKA
     await execute('StreamSwapPool', {
         from: deployer
-    }, 'bind');
+    }, 'bind', tkaDeploy.address, wei(500).toBN(), wei(2).toBN());
+
+    // bind xTKB
+    await execute('StreamSwapPool', {
+        from: deployer
+    }, 'bind', tkbDeploy.address, wei(500).toBN(), wei(2).toBN());
+
+    // bind xTKB
+    await execute('StreamSwapPool', {
+        from: deployer
+    }, 'bind', tkcDeploy.address, wei(500).toBN(), wei(4).toBN());
+
+    // finalize, which generates new pool tokens
+    await execute('StreamSwapPool', {
+        from: deployer
+    }, 'finalize');
 };
 
 export default func;

@@ -2,6 +2,8 @@
 pragma solidity 0.7.6;
 pragma abicoder v2;
 
+import "hardhat/console.sol";
+
 import {
     ISuperfluid,
     ISuperToken
@@ -27,22 +29,43 @@ library StreamSwapLibrary {
         // output token to input token to receivers
         // only for balancer trade hooks. Limitation for the scalability.
 
-        mapping(ISuperToken => StreamSwapArgs[]) accountsPayable;
-        mapping(address => mapping (ISuperToken => uint[])) accountSwapIndexes;
+        // use a sparse array to remember changes in the state
+        StreamSwapState[] streamSwapState;
+
+        // used for rate updates
+        mapping(address => uint64) superTokenToArgs;
+
+        // used for getting existing stream configs for accounts
+        mapping(address => mapping (address => uint64)) accountStreamToArgs;
     }
 
     struct StreamSwapArgs {
         address destSuperToken;
-        address recipient;
         uint inAmount;
-        uint minRate;
-        uint maxRate;
+        uint128 minRate;
+        uint128 maxRate;
+    }
+
+    struct StreamSwapState {
+        address srcSuperToken;
+        address destSuperToken;
+        address sender;
+        uint inAmount;
+        uint128 minRate;
+        uint128 maxRate;
+
+        uint64 prevForSrcSuperToken;
+        uint64 nextForDestSuperToken;
+        uint64 prevForDestSuperToken;
+        uint64 nextForSrcSuperToken;
+
+        uint64 nextSenderAccount;
     }
 
     struct AccountState {
         uint srcBalance;
-        uint destBalance;
         uint srcDenom;
+        uint destBalance;
         uint destDenom;
     }
 
@@ -50,19 +73,23 @@ library StreamSwapLibrary {
         bool bound;   // is token bound to pool
         uint index;   // private
         uint denorm;  // denormalized weight
+        uint balance; // balance (as of last balancer pool operation). this needs to be recorded for remembering relative stream amts
     }
 
     function decodeStreamSwapData(bytes memory d) internal pure returns (StreamSwapArgs memory ssa) {
         (
             ssa.destSuperToken,
-            ssa.recipient,
             ssa.inAmount,
             ssa.minRate,
             ssa.maxRate
-        ) = abi.decode(d, (address, address, uint, uint, uint));
+        ) = abi.decode(d, (address, uint, uint128, uint128));
     }
 
     function decodeUserData(bytes memory userData) internal pure returns (StreamSwapArgs[] memory) {
+
+        if (userData.length == 0)
+            return new StreamSwapArgs[](0);
+
         (bytes[] memory arr) = abi.decode(userData, (bytes[]));
 
         StreamSwapArgs[] memory ssas = new StreamSwapArgs[](arr.length);
@@ -73,9 +100,36 @@ library StreamSwapLibrary {
         return ssas;
     }
 
+    // link entry 1 to entry 2 sequentially in the list for superToken
+    function updateSuperTokenPointers(Context storage ctx, address superToken, uint64 idx1, uint64 idx2) internal {
+
+        if (idx1 == 0) {
+            ctx.superTokenToArgs[superToken] = idx2;
+            return;
+        }
+
+        if (ctx.streamSwapState[idx1].srcSuperToken == superToken) {
+            ctx.streamSwapState[idx1].nextForSrcSuperToken = idx2;
+        }
+        else {
+            ctx.streamSwapState[idx1].nextForDestSuperToken = idx2;
+        }
+
+        if (ctx.streamSwapState[idx2].srcSuperToken == superToken) {
+            ctx.streamSwapState[idx2].prevForSrcSuperToken = idx1;
+        }
+        else {
+            ctx.streamSwapState[idx2].prevForDestSuperToken = idx1;
+        }
+    }
+
+    function initialize(Context storage ctx) public {
+        ctx.streamSwapState.push(StreamSwapState(address(0), address(0), address(0), 0,0,0,0,0,0,0,0));
+    }
+
     function updateTrade(Context storage ctx, ISuperToken superToken, bytes memory newSfCtx, 
-        StreamSwapArgs memory args, StreamSwapArgs memory prevArgs,
-        AccountState memory curAccountState, AccountState memory prevAccountState)
+        StreamSwapState memory args, StreamSwapState storage prevArgs,
+        AccountState memory state)
         public
         returns (bytes memory)
     {
@@ -83,58 +137,77 @@ library StreamSwapLibrary {
             return newSfCtx;
         }
 
+        console.log("state", state.srcBalance, state.destBalance);
         uint oldOutRate = prevArgs.inAmount > 0 ? calcOutGivenIn(
-            prevAccountState.srcBalance, prevAccountState.srcDenom, 
-            prevAccountState.destBalance, prevAccountState.destBalance, 
+            state.srcBalance, state.srcDenom, 
+            state.destBalance, state.destDenom, 
             prevArgs.inAmount, 0) : 0;
 
-        uint newOutRate = calcOutGivenIn(
-            curAccountState.srcBalance, curAccountState.srcDenom, 
-            curAccountState.destBalance, curAccountState.destBalance, 
-            args.inAmount, 0);
+        uint newOutRate = args.inAmount > 0 ? calcOutGivenIn(
+            state.srcBalance, state.srcDenom, 
+            state.destBalance, state.destDenom, 
+            args.inAmount, 0) : 0;
 
-        (,int96 curOutFlow,,) = ctx.cfa.getFlow(ISuperToken(args.destSuperToken), address(this), args.recipient);
+        (,int96 curOutFlow,,) = args.destSuperToken != address(0) ?
+            ctx.cfa.getFlow(ISuperToken(args.destSuperToken), address(this), args.sender) :
+            (0,0,0,0);
 
-        if (prevArgs.recipient != args.recipient || prevArgs.destSuperToken != args.destSuperToken) {
+        console.log("got flow", uint(curOutFlow));
 
-            if (prevArgs.destSuperToken != address(0) && uint256(curOutFlow) == oldOutRate) {
-                (newSfCtx, ) = ctx.host.callAgreementWithContext(
-                    ctx.cfa,
-                    abi.encodeWithSelector(
-                        ctx.cfa.deleteFlow.selector,
-                        args.destSuperToken,
-                        address(this),
-                        args.recipient,
-                        new bytes(0) // placeholder
-                    ),
-                    "0x",
-                    newSfCtx
-                );
-            }
-            else if (prevArgs.destSuperToken != address(0) && uint256(curOutFlow) > prevArgs.inAmount) {
-                (newSfCtx, ) = ctx.host.callAgreementWithContext(
-                    ctx.cfa,
-                    abi.encodeWithSelector(
-                        ctx.cfa.updateFlow.selector,
-                        args.destSuperToken,
-                        address(this),
-                        args.recipient,
-                        uint256(curOutFlow) - oldOutRate,
-                        new bytes(0) // placeholder
-                    ),
-                    "0x",
-                    newSfCtx
-                );
+        if (prevArgs.destSuperToken != args.destSuperToken) {
+
+            if (prevArgs.destSuperToken != address(0)) {
+                (,int96 prevTokenCurOutFlow,,) = ctx.cfa.getFlow(ISuperToken(prevArgs.destSuperToken), address(this), prevArgs.sender);
+                console.log("got prev token flow", prevArgs.destSuperToken, uint(prevTokenCurOutFlow), oldOutRate);
+                // sanity
+                require(uint256(prevTokenCurOutFlow) >= oldOutRate, "ERR_IMPOSSIBLE_RATE");
+
+                console.log("letsa go");
+
+                if (uint256(prevTokenCurOutFlow) == oldOutRate) {
+                    console.log("remove previous flow");
+                    (newSfCtx, ) = ctx.host.callAgreementWithContext(
+                        ctx.cfa,
+                        abi.encodeWithSelector(
+                            ctx.cfa.deleteFlow.selector,
+                            prevArgs.destSuperToken,
+                            address(this), // for some reason deleteFlow is the only function that takes a sender parameter
+                            prevArgs.sender,
+                            new bytes(0) // placeholder
+                        ),
+                        "0x",
+                        newSfCtx
+                    );
+
+                    console.log("removed");
+                }
+                else {
+                    console.log("shrink previous flow");
+                    (newSfCtx, ) = ctx.host.callAgreementWithContext(
+                        ctx.cfa,
+                        abi.encodeWithSelector(
+                            ctx.cfa.updateFlow.selector,
+                            prevArgs.destSuperToken,
+                            prevArgs.sender,
+                            uint256(prevTokenCurOutFlow) - oldOutRate,
+                            new bytes(0) // placeholder
+                        ),
+                        "0x",
+                        newSfCtx
+                    );
+                }
             }
 
             if (args.destSuperToken != address(0)) {
+                require(args.destSuperToken != address(superToken), "ERR_MUST_TRADE");
+
+                console.log("upsert flow", args.destSuperToken, uint(curOutFlow), newOutRate);
                 (newSfCtx, ) = ctx.host.callAgreementWithContext(
                     ctx.cfa,
                     abi.encodeWithSelector(
                         curOutFlow == 0 ? ctx.cfa.createFlow.selector : ctx.cfa.updateFlow.selector,
                         args.destSuperToken,
-                        address(this),
-                        args.recipient,
+                        args.sender,
                         uint256(curOutFlow) + newOutRate,
                         new bytes(0) // placeholder
                     ),
@@ -146,13 +219,13 @@ library StreamSwapLibrary {
         else if (oldOutRate != newOutRate) {
 
             // just modifying amount
+            console.log("flow rate change", args.destSuperToken);
             (newSfCtx, ) = ctx.host.callAgreementWithContext(
                 ctx.cfa,
                 abi.encodeWithSelector(
                     ctx.cfa.updateFlow.selector,
                     args.destSuperToken,
-                    address(this),
-                    args.recipient,
+                    args.sender,
                     uint256(curOutFlow) + newOutRate - oldOutRate,
                     new bytes(0) // placeholder
                 ),
@@ -168,14 +241,16 @@ library StreamSwapLibrary {
         public
         returns (bytes memory)
     {
-        StreamSwapArgs memory EMPTY_ARGS = StreamSwapArgs(address(0), address(0), 0, 0, 0);
-
         ISuperfluid.Context memory context = ctx.host.decodeCtx(newSfCtx);
         StreamSwapArgs[] memory args = decodeUserData(context.userData);
 
+        console.log("streamswapargs: decoded", args.length);
+
         uint inSum = 0;
 
-        uint[] storage idxs = ctx.accountSwapIndexes[context.msgSender][superToken];
+        uint64[2] memory curStateIdx = [ctx.accountStreamToArgs[context.msgSender][address(superToken)], 0];
+
+        console.log("found existing?", curStateIdx[0] > 0);
 
         for (uint i = 0;i < args.length;i++) {
             require(args[i].inAmount > 0, "ERR_INVALID_AMOUNT");
@@ -183,42 +258,125 @@ library StreamSwapLibrary {
             inSum += args[i].inAmount;
 
             AccountState memory state = AccountState(
-                getSuperBalance(address(superToken)), records[address(superToken)].denorm, getSuperBalance(address(args[i].destSuperToken)),
+                records[address(superToken)].balance, records[address(superToken)].denorm, records[address(args[i].destSuperToken)].balance,
                 records[address(args[i].destSuperToken)].denorm
             );
 
-            if (i < idxs.length) {
+            console.log("got super balances", state.srcBalance, state.destBalance);
+
+            if (curStateIdx[0] != 0) {
                 // update in place
-                StreamSwapArgs storage entry = ctx.accountsPayable[superToken][idxs[i] - 1];
-                newSfCtx = updateTrade(ctx, superToken, newSfCtx, args[i], entry, state, state);
-                ctx.accountsPayable[superToken][idxs[i] - 1] = args[i];
+                StreamSwapState storage entry = ctx.streamSwapState[curStateIdx[0]];
+                StreamSwapState memory newEntry = StreamSwapState({
+                    srcSuperToken: address(superToken),
+                    destSuperToken: args[i].destSuperToken,
+                    sender: context.msgSender,
+                    inAmount: args[i].inAmount,
+                    minRate: args[i].minRate,
+                    maxRate: args[i].maxRate,
+
+                    prevForSrcSuperToken: 0,
+                    nextForSrcSuperToken: 0,
+                    prevForDestSuperToken: 0,
+                    nextForDestSuperToken: 0,
+                    nextSenderAccount: 0
+                });
+                newSfCtx = updateTrade(ctx, superToken, newSfCtx, newEntry, entry, state);
+
+                // update dest super token if it has changed
+                if (args[i].destSuperToken != entry.destSuperToken) {
+                    updateSuperTokenPointers(ctx, entry.destSuperToken, entry.prevForDestSuperToken, entry.nextForDestSuperToken);
+
+                    entry.destSuperToken = args[i].destSuperToken;
+                    uint64 prevHead = ctx.superTokenToArgs[args[i].destSuperToken];
+                    updateSuperTokenPointers(ctx, args[i].destSuperToken, curStateIdx[0], prevHead);
+                    updateSuperTokenPointers(ctx, args[i].destSuperToken, 0, curStateIdx[0]);
+                }
+
+                // update args
+                entry.inAmount = args[i].inAmount;
+                entry.minRate = args[i].minRate;
+                entry.maxRate = args[i].maxRate;
+
+                curStateIdx[1] = curStateIdx[0];
+                curStateIdx[0] = entry.nextSenderAccount;
             }
             else {
-                newSfCtx = updateTrade(ctx, superToken, newSfCtx, args[i], EMPTY_ARGS, state, state);
+                // new stream swap
 
-                idxs.push(ctx.accountsPayable[superToken].length + 1);
-                ctx.accountsPayable[superToken].push(args[i]);
+                StreamSwapState memory newEntry = StreamSwapState({
+                    srcSuperToken: address(superToken),
+                    destSuperToken: args[i].destSuperToken,
+                    sender: context.msgSender,
+                    inAmount: args[i].inAmount,
+                    minRate: args[i].minRate,
+                    maxRate: args[i].maxRate,
+
+                    prevForSrcSuperToken: 0,
+                    nextForSrcSuperToken: ctx.superTokenToArgs[address(superToken)],
+                    prevForDestSuperToken: 0,
+                    nextForDestSuperToken: ctx.superTokenToArgs[args[i].destSuperToken],
+                    nextSenderAccount: 0
+                });
+
+                StreamSwapState storage emptyEntry = ctx.streamSwapState[0];
+
+                newSfCtx = updateTrade(ctx, superToken, newSfCtx, newEntry, emptyEntry, state);
+
+                ctx.streamSwapState.push(newEntry);
+
+                uint64 pos = uint64(ctx.streamSwapState.length - 1);
+
+                if (curStateIdx[1] > 0) {
+                    ctx.streamSwapState[curStateIdx[1]].nextSenderAccount = pos;
+                }
+                else {
+                    ctx.accountStreamToArgs[context.msgSender][address(superToken)] = pos;
+                }
+
+                updateSuperTokenPointers(ctx, address(superToken), pos, newEntry.nextForSrcSuperToken);
+                updateSuperTokenPointers(ctx, address(superToken), 0, pos);
+
+                updateSuperTokenPointers(ctx, args[i].destSuperToken, pos, newEntry.nextForDestSuperToken);
+                updateSuperTokenPointers(ctx, args[i].destSuperToken, 0, pos);
+
+                curStateIdx[1] = pos;
             }
         }
 
-        while (args.length < idxs.length) {
-            uint idx = idxs[idxs.length - 1];
-            idxs.pop();
+        console.log("done with existing ids");
 
-            StreamSwapArgs storage entry = ctx.accountsPayable[superToken][idx - 1];
+        while (curStateIdx[0] != 0) {
+            console.log("pop");
+
+            StreamSwapState storage entry = ctx.streamSwapState[curStateIdx[0]];
+
             AccountState memory state = AccountState(
-                getSuperBalance(address(superToken)), records[address(superToken)].denorm, 
-                getSuperBalance(entry.destSuperToken), 
+                records[address(superToken)].balance, records[address(superToken)].denorm, 
+                records[address(entry.destSuperToken)].balance, 
                 records[address(entry.destSuperToken)].denorm
             );
 
-            updateTrade(ctx, superToken, newSfCtx, EMPTY_ARGS, entry, state, state);
+            newSfCtx = updateTrade(ctx, superToken, newSfCtx, ctx.streamSwapState[0], entry, state);
 
-            // TODO: need to find a better way to do this, it would not last in production
-            // reason it does not work right now is because accountSwapIndexes cannot be resolved from here for an arb accountsPayable
-            ctx.accountsPayable[superToken][idx - 1] = EMPTY_ARGS; //ctx.accountsPayable[superToken][ctx.accountsPayable[superToken].length - 1];
+            // src super token list
+            updateSuperTokenPointers(ctx, address(superToken), entry.prevForSrcSuperToken, entry.nextForSrcSuperToken);
+            updateSuperTokenPointers(ctx, entry.destSuperToken, entry.prevForDestSuperToken, entry.nextForDestSuperToken);
 
+            uint64 nextStateIdx = entry.nextSenderAccount;
+            ctx.streamSwapState[curStateIdx[0]] = ctx.streamSwapState[0];
+
+            if(curStateIdx[1] > 0) {
+                ctx.streamSwapState[curStateIdx[1]].nextSenderAccount = 0;
+            }
+            else {
+                ctx.accountStreamToArgs[context.msgSender][address(superToken)] = 0;
+            }
+
+            curStateIdx[0] = nextStateIdx;
         }
+
+        console.log("final check");
 
         (,int96 inFlow,,) = ctx.cfa.getFlow(superToken, context.msgSender, address(this));
         require(inSum == uint256(inFlow), "ERR_INVALID_SUM");
@@ -226,30 +384,68 @@ library StreamSwapLibrary {
         return newSfCtx;
     }
 
-    function updateFlowRates(Context storage ctx, address superToken, mapping(address => StreamSwapLibrary.Record) storage records, uint prevBalance)
+    function updateFlowRates(Context storage ctx, address superToken, mapping(address => StreamSwapLibrary.Record) storage records, StreamSwapLibrary.Record memory prevRecord)
         public
     {
-        StreamSwapArgs[] memory swapArgs = ctx.accountsPayable[ISuperToken(superToken)];
+        uint curIdx = ctx.superTokenToArgs[superToken];
 
-        uint len = swapArgs.length; // not sure if this is needed
-        for(uint i = 0;i < swapArgs.length;i++) {
-            AccountState memory curState = AccountState(getSuperBalance(superToken), records[superToken].denorm, getSuperBalance(swapArgs[i].destSuperToken), records[address(swapArgs[i].destSuperToken)].denorm);
-            AccountState memory oldState = AccountState(prevBalance, records[superToken].denorm, getSuperBalance(swapArgs[i].destSuperToken), records[address(swapArgs[i].destSuperToken)].denorm);
-            updateTrade(ctx, ISuperToken(superToken), new bytes(0), swapArgs[i], swapArgs[i],
-                curState, 
-                oldState
+        console.log("update flow rates");
+
+        while (curIdx > 0) {
+            console.log("doing one", curIdx);
+            StreamSwapState memory entry = ctx.streamSwapState[curIdx];
+
+            // this is basically a shorter version of what happens in the updateTrade above
+            // except it just calls raw `callAgreement` and saves gas
+
+            (,int96 curOutFlow,,) = ctx.cfa.getFlow(ISuperToken(entry.destSuperToken), address(this), entry.sender);
+
+            uint oldOutRate;
+            uint newOutRate;
+            if(superToken == entry.srcSuperToken) {
+                oldOutRate = calcOutGivenIn(
+                    prevRecord.balance, prevRecord.denorm, 
+                    records[entry.destSuperToken].balance, records[entry.destSuperToken].denorm, 
+                    entry.inAmount, 0);
+
+                newOutRate = calcOutGivenIn(
+                    records[superToken].balance, records[superToken].denorm, 
+                    records[entry.destSuperToken].balance, records[entry.destSuperToken].denorm, 
+                    entry.inAmount, 0);
+                
+                curIdx = entry.nextForSrcSuperToken;
+            }
+            else {
+                oldOutRate = calcOutGivenIn(
+                    records[entry.srcSuperToken].balance, records[entry.srcSuperToken].denorm, 
+                    prevRecord.balance, prevRecord.denorm, 
+                    entry.inAmount, 0);
+
+                newOutRate = calcOutGivenIn(
+                    records[entry.srcSuperToken].balance, records[entry.srcSuperToken].denorm, 
+                    records[superToken].balance, records[superToken].denorm, 
+                    entry.inAmount, 0);
+                
+                curIdx = entry.nextForDestSuperToken;
+            }
+            
+            console.log("change out rate", oldOutRate, newOutRate);
+            console.log("cur rate       ", uint(curOutFlow));
+            ctx.host.callAgreement(
+                ctx.cfa,
+                abi.encodeWithSelector(
+                    ctx.cfa.updateFlow.selector,
+                    entry.destSuperToken,
+                    entry.sender,
+                    uint256(curOutFlow) + newOutRate - oldOutRate,
+                    new bytes(0) // placeholder
+                ),
+                "0x"
             );
         }
-    }
 
-    function getSuperBalance(address token)
-        internal view
-        returns (uint)
-    {
-        // call balanceOf is safe here because it can only be called on a SuperToken
-        return IERC20(token).balanceOf(address(this));
+        console.log("finished update");
     }
-
 
     /**********************************************************************************************
     // calcSpotPrice                                                                             //
