@@ -14,9 +14,12 @@
   font-size: 1.5rem;
 }
 
-
 .card {
   cursor: pointer;
   user-select: none;
   width: 100%;
+}
+
+.card p {
+  margin: 0.5rem 0 0 0;
 }
