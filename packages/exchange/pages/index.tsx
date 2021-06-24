@@ -15,7 +15,7 @@ const Home = () => (
         </T>
         <T className={styles.description} variant="subtitle1" component="p">
           Continuous exchange of{' '}
-          <a href="https://superfluid.finance" target="_blank" rel="noopener">
+          <a href="https://superfluid.finance" target="_blank" rel="noopener noreferrer">
             Superfliud
           </a>{' '}
           streams
