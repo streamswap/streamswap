@@ -6,8 +6,7 @@ import Grid from '@material-ui/core/Grid';
 import CardContent from '@material-ui/core/CardContent';
 import T from '@material-ui/core/Typography';
 
-/** Home */
-export default () => (
+const Home = () => (
   <MainLayout title="Home">
     <Grid container spacing={4}>
       <Grid item xs={12}>
@@ -51,3 +50,5 @@ export default () => (
     </Grid>
   </MainLayout>
 );
+
+export default Home;

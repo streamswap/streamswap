@@ -9,12 +9,14 @@ import FormControlLabel from '@material-ui/core/FormControlLabel';
 import Checkbox from '@material-ui/core/Checkbox';
 import Grid from '@material-ui/core/Grid';
 
-export default () => (
+const Exchange = () => (
   <MainLayout title="Exchange">
     <T variant="h2">Exchange</T>
     <T variant="body1">Continuously exchange one super token for another</T>
 
-    <T variant="h6" className={styles.sectionHeading}>From</T>
+    <T variant="h6" className={styles.sectionHeading}>
+      From
+    </T>
     <Grid container spacing={3}>
       <Grid item xs={12} sm={8}>
         <TextField required id="fromAmount" label="Amount" fullWidth type="number" />
@@ -39,3 +41,5 @@ export default () => (
     {/*</Grid>*/}
   </MainLayout>
 );
+
+export default Exchange;
