@@ -1,6 +1,6 @@
-import styles from "../styles/Footer.module.css";
+import styles from '../styles/Footer.module.css';
 
-export default () => (
+const Footer = () => (
   <footer className={styles.footer}>
     <a href="https://hackmoney.ethglobal.co" target="_blank" rel="noopener">
       Hackmoney 2021!
@@ -10,3 +10,5 @@ export default () => (
     </a>
   </footer>
 );
+
+export default Footer;
