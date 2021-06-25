@@ -64,8 +64,8 @@ describe('StreamSwapPool', function() {
     encodeStreamSwapData([{
       destSuperToken: superTokenB!.address,
       inAmount: TESTING_FLOW_RATE,
-      minRate: wei(0),
-      maxRate: wei(100)
+      minOut: wei(0),
+      maxOut: wei(0)
     }]));
   });
 
@@ -94,8 +94,8 @@ describe('StreamSwapPool', function() {
     encodeStreamSwapData([{
       destSuperToken: superTokenB!.address,
       inAmount: TESTING_FLOW_RATE.mul(2),
-      minRate: wei(0),
-      maxRate: wei(100)
+      minOut: wei(0),
+      maxOut: wei(0)
     }]));
   });
 
@@ -109,13 +109,13 @@ describe('StreamSwapPool', function() {
     encodeStreamSwapData([{
       destSuperToken: superTokenB!.address,
       inAmount: TESTING_FLOW_RATE,
-      minRate: wei(0),
-      maxRate: wei(100)
+      minOut: wei(0),
+      maxOut: wei(0)
     }, {
       destSuperToken: superTokenC!.address,
       inAmount: TESTING_FLOW_RATE,
-      minRate: wei(0),
-      maxRate: wei(100)
+      minOut: wei(0),
+      maxOut: wei(0)
     }]));
 
     expect(wei(await cfa!.getNetFlow(superTokenC!.address, myAddress)).toNumber()).to.be.greaterThan(0);
@@ -157,11 +157,54 @@ describe('StreamSwapPool', function() {
     expect(wei(await streamSwap!.balanceOf(myAddress)).toNumber()).to.equal(100);
   });
 
-  it('should swap to another account which is already being streamed to', async () => {
+  it('should return stream when outside minOut/maxOut', async () => {
+    await sf!.callAgreement(cfa!.address, cfa!.interface.encodeFunctionData('createFlow', [
+      superTokenA!.address,
+      streamSwap!.address,
+      TESTING_FLOW_RATE.toBN(),
+      "0x"
+    ]), 
+    encodeStreamSwapData([{
+      destSuperToken: superTokenB!.address,
+      inAmount: TESTING_FLOW_RATE,
+      minOut: wei(100), // theoretical "impossible" rate
+      maxOut: wei(150)
+    }]));
 
+    // no flowing should happen at this point
+    expect(wei(await cfa!.getNetFlow(superTokenA!.address, myAddress)).toNumber()).to.equal(0);
+    expect(wei(await cfa!.getNetFlow(superTokenB!.address, myAddress)).toNumber()).to.equal(0);
+    
+    await sf!.callAgreement(cfa!.address, cfa!.interface.encodeFunctionData('deleteFlow', [
+      superTokenA!.address,
+      myAddress,
+      streamSwap!.address,
+      '0x'
+    ]), '0x');
+
+    // still no flowing should happen at this point
+    expect(wei(await cfa!.getNetFlow(superTokenA!.address, myAddress)).toNumber()).to.equal(0);
+    expect(wei(await cfa!.getNetFlow(superTokenB!.address, myAddress)).toNumber()).to.equal(0);
   });
 
-  it('should change stream rates when swap occurs', async () => {
+  it.skip('should turn off and on stream as rate changes depending on minOut/maxOut', async () => {
+    // we will set stream rates based on current rate, which makes it easy to test in/out
+    const curRate = streamSwap?.getSpotPriceSansFee(tokenA!.address, tokenB!.address);
 
+    await sf!.callAgreement(cfa!.address, cfa!.interface.encodeFunctionData('createFlow', [
+      superTokenA!.address,
+      streamSwap!.address,
+      TESTING_FLOW_RATE.toBN(),
+      "0x"
+    ]), 
+    encodeStreamSwapData([{
+      destSuperToken: superTokenB!.address,
+      inAmount: TESTING_FLOW_RATE,
+      minOut: wei(100), // theoretical "impossible" rate
+      maxOut: wei(150)
+    }]));
+
+    expect(wei(await cfa!.getNetFlow(superTokenA!.address, myAddress)).toNumber()).to.equal(0);
+    expect(wei(await cfa!.getNetFlow(superTokenB!.address, myAddress)).toNumber()).to.equal(0);
   });
 });

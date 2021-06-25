@@ -5,8 +5,8 @@ import { ethers } from "hardhat";
 export interface StreamSwapArgs {
     destSuperToken: string;
     inAmount: Wei;
-    minRate: Wei;
-    maxRate: Wei;
+    minOut: Wei;
+    maxOut: Wei;
 }
 
 export default function encodeStreamSwapData(args: StreamSwapArgs[]): string {
@@ -15,7 +15,7 @@ export default function encodeStreamSwapData(args: StreamSwapArgs[]): string {
     for (const arg of args) {
         raws.push(ethers.utils.defaultAbiCoder.encode(
             ['address', 'uint', 'uint128', 'uint128'], 
-            [arg.destSuperToken, arg.inAmount.toBN(), arg.minRate.toBN(), arg.maxRate.toBN()]
+            [arg.destSuperToken, arg.inAmount.toBN(), arg.minOut.toBN(), arg.maxOut.toBN()]
         ));
     }
 
