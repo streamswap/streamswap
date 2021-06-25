@@ -34,6 +34,24 @@ const Home = () => (
       <Grid item md={6} xs={12}>
         <Card className={styles.card}>
           <CardContent>
+            <T variant="h4">Dashboard&nbsp;&rarr;</T>
+            <T variant="body1">See your current exchange streams.</T>
+          </CardContent>
+        </Card>
+      </Grid>
+      <Grid item md={6} xs={12}>
+        <Link href="/save">
+          <Card className={styles.card}>
+            <CardContent>
+              <T variant="h4">Save&nbsp;&rarr;</T>
+              <T variant="body1">Get paid to provide liquidity for super token exchanges!</T>
+            </CardContent>
+          </Card>
+        </Link>
+      </Grid>
+      <Grid item md={6} xs={12}>
+        <Card className={styles.card}>
+          <CardContent>
             <T variant="h4">Create Exchange&nbsp;&rarr;</T>
             <T variant="body1">Create a new super token exchange.</T>
           </CardContent>

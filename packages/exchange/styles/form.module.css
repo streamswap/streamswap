@@ -1,0 +1,40 @@
+/* Some styles for basic form components such as Exchange and Save */
+
+/** Main form paper */
+.form {
+  max-width: 1200px;
+  width: 100%;
+  padding: 1em 1em 2em;
+}
+
+/** Sub info box paper */
+.info {
+  width: 100%;
+  padding: 1em 1em 2em;
+  margin: 2em 0;
+}
+
+.sectionHeading {
+  text-align: left;
+  width: 100%;
+  padding: 2em 0 0 0;
+  box-sizing: border-box;
+}
+
+.selectInput {
+  height: 100%;
+}
+
+.selectInput > div {
+  position: absolute;
+  bottom: 0;
+  box-sizing: border-box;
+}
+
+.controlRow {
+  padding-top: 3em;
+}
+
+.submitButton {
+  width: 100%;
+}
