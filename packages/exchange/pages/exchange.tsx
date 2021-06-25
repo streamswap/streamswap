@@ -1,30 +1,25 @@
-import styles from '../styles/Exchange.module.css';
+import styles from '../styles/form.module.css';
 import MainLayout from '../components/MainLayout';
 
 import T from '@material-ui/core/Typography';
 import Select from '@material-ui/core/Select';
 import MenuItem from '@material-ui/core/MenuItem';
 import TextField from '@material-ui/core/TextField';
-import FormControlLabel from '@material-ui/core/FormControlLabel';
-import Checkbox from '@material-ui/core/Checkbox';
 import Grid from '@material-ui/core/Grid';
 import Autocomplete, { createFilterOptions } from '@material-ui/lab/Autocomplete';
-import Paper from '@material-ui/core/Paper'
-import Button from '@material-ui/core/Button'
+import Paper from '@material-ui/core/Paper';
+import Button from '@material-ui/core/Button';
 
-interface TokenDef {
-  readonly symbol: string;
-  readonly name?: string;
-  readonly decimals: number;
-}
+import { TokenDef } from './api/tokens';
+
 const placeholderTokens: TokenDef[] = [
-  { symbol: 'USDc', name: 'USDC', decimals: 6 },
-  { symbol: 'WETH', name: 'Wrapped Ether', decimals: 18 },
+  { symbol: 'USDc', name: 'USDC', decimals: 6, contract: '' },
+  { symbol: 'WETH', name: 'Wrapped Ether', decimals: 18, contract: '' },
 ];
 
 const Exchange = () => (
   <MainLayout title="Exchange">
-    <Paper className={styles.exchange}>
+    <Paper className={styles.form}>
       <T variant="h2">Exchange</T>
       <T variant="body1">Continuously exchange one super token for another</T>
 
@@ -72,7 +67,13 @@ const Exchange = () => (
           />
         </Grid>
         <Grid item xs={6} sm={4}>
-          <TextField id="min-received" label="Min Received" fullWidth type="number" defaultValue="0" />
+          <TextField
+            id="min-received"
+            label="Min Received"
+            fullWidth
+            type="number"
+            defaultValue="0"
+          />
         </Grid>
       </Grid>
 
@@ -81,7 +82,9 @@ const Exchange = () => (
           <Button className={styles.submitButton}>cancel</Button>
         </Grid>
         <Grid item xs={6}>
-          <Button color="primary" variant="contained" className={styles.submitButton}>Exchange</Button>
+          <Button color="primary" variant="contained" className={styles.submitButton}>
+            Exchange
+          </Button>
         </Grid>
       </Grid>
     </Paper>
