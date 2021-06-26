@@ -191,11 +191,10 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
     )
         external override
         onlyHost
-        returns (bytes memory)
+        returns (bytes memory newCtx)
     {
         console.log("agreement term");
-        _streamSwapContext.makeTrade(_superToken, _ctx, _records);
-        return _ctx;
+        newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
     }
 
     /**************************************************************************
