@@ -280,18 +280,25 @@ library StreamSwapLibrary {
             args.inAmount, 0) : 0;
         
         // is the trade currently outside its range
-        if ((args.minOut != 0 && newOutRate > args.minOut) || (args.maxOut != 0 && newOutRate > args.maxOut)) {
-            if (args.active > 0) {
-                newSfCtx = clearTradeOutWithContext(ctx, newSfCtx, prevArgs.destSuperToken, prevArgs.sender, oldOutRate);
-                newSfCtx = adjustTradeOutWithContext(ctx, newSfCtx, prevArgs.srcSuperToken, args.sender, 0, args.inAmount);
+        if ((args.minOut != 0 && newOutRate < args.minOut) || (args.maxOut != 0 && newOutRate > args.maxOut)) {
+            console.log("out of range");
+            if (prevArgs.inAmount != args.inAmount || prevArgs.active > 0) {
+                console.log("starting inactive");
+                if (prevArgs.active > 0) {
+                    newSfCtx = clearTradeOutWithContext(ctx, newSfCtx, prevArgs.destSuperToken, prevArgs.sender, oldOutRate);
+                }
+                
+                newSfCtx = adjustTradeOutWithContext(ctx, newSfCtx, args.srcSuperToken, args.sender, prevArgs.active > 0 ? 0 : prevArgs.inAmount, args.inAmount);
 
                 args.active = 0;
             }
 
             return newSfCtx;
         }
-        else if (args.active == 0) {
-            newSfCtx = clearTradeOutWithContext(ctx, newSfCtx, prevArgs.srcSuperToken, args.sender, args.inAmount);
+        else if (prevArgs.active == 0) {
+            console.log("starting reactivate");
+            newSfCtx = clearTradeOutWithContext(ctx, newSfCtx, prevArgs.srcSuperToken, prevArgs.sender, prevArgs.inAmount);
+            oldOutRate = 0;
             args.active = 1;
         }
 
@@ -503,8 +510,10 @@ library StreamSwapLibrary {
             }
 
             // is the trade currently outside its range
-            if ((entry.minOut != 0 && newOutRate > entry.minOut) || (entry.maxOut != 0 && newOutRate > entry.maxOut)) {
+            if ((entry.minOut != 0 && newOutRate < entry.minOut) || (entry.maxOut != 0 && newOutRate > entry.maxOut)) {
+                console.log("out of range");
                 if (entry.active > 0) {
+                    console.log("starting deactivate");
                     clearTradeOut(ctx, entry.destSuperToken, entry.sender, oldOutRate);
                     adjustTradeOut(ctx, entry.srcSuperToken, entry.sender, 0, entry.inAmount);
 
@@ -514,6 +523,7 @@ library StreamSwapLibrary {
                 continue;
             }
             else if (entry.active == 0) {
+                console.log("starting reactivate");
                 clearTradeOut(ctx, entry.srcSuperToken, entry.sender, entry.inAmount);
                 adjustTradeOut(ctx, entry.destSuperToken, entry.sender, 0, newOutRate);
                 entry.active = 1;
