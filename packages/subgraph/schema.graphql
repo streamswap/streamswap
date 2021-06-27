@@ -7,17 +7,6 @@ type StreamSwapFactory @entity {
   # pool info
   poolCount: Int!
 
-  # total volume
-#  totalVolumeUSD: BigDecimal!
-#  totalVolumeETH: BigDecimal!
-
-  # untracked values - less confident USD scores
-#  untrackedVolumeUSD: BigDecimal!
-
-  # total liquidity
-#  totalLiquidityUSD: BigDecimal!
-#  totalLiquidityETH: BigDecimal!
-
   # transactions
   txCount: BigInt!
 }
@@ -34,19 +23,11 @@ type Token @entity {
   # used for other stats like marketcap
   totalSupply: BigInt!
 
-  # token specific volume
-#  tradeVolume: BigDecimal!
-#  tradeVolumeUSD: BigDecimal!
-#  untrackedVolumeUSD: BigDecimal!
-
   # transactions across all pairs
   txCount: BigInt!
 
   # liquidity across all pairs
   totalLiquidity: BigDecimal!
-
-  # derived prices
-#  derivedETH: BigDecimal
 
   # derived fields
   tokenDayData: [TokenDayData!]! @derivedFrom(field: "token")
@@ -72,12 +53,6 @@ type Pool @entity {
 
   # tokens stored in the pool
   tokens: [PooledToken!]! @derivedFrom(field: "pool")
-
-  # derived liquidity
-#  reserveETH: BigDecimal!
-#  reserveUSD: BigDecimal!
-  # used for separating per pair reserves and global
-#  trackedReserveETH: BigDecimal!
 
   txCount: BigInt!
 
@@ -113,6 +88,7 @@ type UnarySwapData {
 type ContinuousSwapData {
   # Rate is in wei/s or more accurately `10^(-token.decimals)/s`
   rateIn: BigDecimal!
+  # this will be zero once it is stopped
   currentRateOut: BigDecimal!
 
   # info to make calculating amount swapped live, store integration over all previous rates and allow for live updates
@@ -141,16 +117,6 @@ type Swap @entity {
 type StreamSwapDayData @entity {
   id: ID! # timestamp rounded to current day by dividing by 86400
   date: Int!
-
-#  dailyVolumeETH: BigDecimal!
-#  dailyVolumeUSD: BigDecimal!
-#  dailyVolumeUntracked: BigDecimal!
-#
-#  totalVolumeETH: BigDecimal!
-#  totalLiquidityETH: BigDecimal!
-#  totalVolumeUSD: BigDecimal! # Accumulate at each trade, not just calculated off whatever totalVolume is. making it more accurate as it is a live conversion
-#  totalLiquidityUSD: BigDecimal!
-
   txCount: BigInt!
 }
 
@@ -172,11 +138,7 @@ type PoolHourData @entity {
   # total supply for LP historical returns
   totalSupply: BigDecimal!
 
-  # derived liquidity
-#  reserveUSD: BigDecimal!
-
   # volume stats
-#  hourlyVolumeUSD: BigDecimal!
   hourlyTxns: BigInt!
 }
 
@@ -199,11 +161,7 @@ type PoolDayData @entity {
   # total supply for LP historical returns
   totalSupply: BigDecimal!
 
-  # derived liquidity
-#  reserveUSD: BigDecimal!
-
   # volume stats
-#  dailyVolumeUSD: BigDecimal!
   dailyTxns: BigInt!
 }
 
@@ -214,15 +172,8 @@ type TokenDayData @entity {
 
   # volume stats
   dailyVolumeToken: BigDecimal!
-#  dailyVolumeETH: BigDecimal!
-#  dailyVolumeUSD: BigDecimal!
   dailyTxns: BigInt!
 
   # liquidity stats
   totalLiquidityToken: BigDecimal!
-#  totalLiquidityETH: BigDecimal!
-#  totalLiquidityUSD: BigDecimal!
-
-  # price stats
-#  priceUSD: BigDecimal!
 }
