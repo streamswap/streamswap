@@ -1,7 +1,6 @@
 {
-  "name": "streamtrade",
-  "private": true,
-  "description": "streaming exchange app for continuous buy/sell",
+  "name": "@streamswap/subgraph",
+  "version": "0.1.0",
   "contributors": [
     {
       "name": "Daniel Beal",
@@ -17,12 +16,20 @@
     "url": "git+https://github.com/KillerByte/streamtrade.git"
   },
   "license": "GPL-3.0",
-  "devDependencies": {
-    "@graphprotocol/graph-cli": "^0.20.1",
-    "lerna": "^4.0.0",
-    "prettier": "^2.3.1"
-  },
   "bugs": {
     "url": "https://github.com/KillerByte/streamtrade/issues"
+  },
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph codegen && graph build",
+    "clean": "rm -rf generated build"
+  },
+  "devDependencies": {
+    "@graphprotocol/graph-cli": "^0.20.1",
+    "@graphprotocol/graph-ts": "^0.20.0",
+    "ws": "^7.5.0"
+  },
+  "dependencies": {
+    "@streamswap/core": "^0.0.1"
   }
 }
