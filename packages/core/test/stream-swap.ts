@@ -14,7 +14,7 @@ import encodeStreamSwapData from '../utils/encodeStreamSwapData';
 
 describe('StreamSwapPool', function() {
 
-  this.timeout(8000);
+  this.timeout(80000);
 
   const TESTING_FLOW_RATE = wei(1).div(7).div(86400);
 
