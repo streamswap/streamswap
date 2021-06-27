@@ -21,7 +21,7 @@
   },
   "scripts": {
     "codegen": "graph codegen",
-    "build": "graph build",
+    "build": "graph codegen && graph build",
     "clean": "rm -rf generated build"
   },
   "devDependencies": {

@@ -23,7 +23,7 @@ dataSources:
       eventHandlers:
         - event: LOG_NEW_POOL(indexed address,indexed address)
           handler: handleNewPool
-      file: ./src/factory.ts
+      file: ./src/mapping.ts
 templates:
   - kind: ethereum/contract
     name: Pool
@@ -34,7 +34,7 @@ templates:
       kind: ethereum/events
       apiVersion: 0.0.4
       language: wasm/assemblyscript
-      file: ./src/core.ts
+      file: ./src/mapping.ts
       entities:
         - Pool
         - Token
@@ -45,7 +45,7 @@ templates:
           file: node_modules/@streamswap/core/deployments/goerli/StreamSwapFactory.json
       eventHandlers:
         - event: LOG_SWAP(indexed address,indexed address,indexed address,uint256,uint256)
-          handler: handleSwap
+          handler: handleInstantSwap
         - event: LOG_JOIN(indexed address,indexed address,uint256)
           handler: handleJoinPool
         - event: LOG_EXIT(indexed address,indexed address,uint256)
