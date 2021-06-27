@@ -281,13 +281,14 @@ library StreamSwapLibrary {
         
         // is the trade currently outside its range
         if ((args.minOut != 0 && newOutRate < args.minOut) || (args.maxOut != 0 && newOutRate > args.maxOut)) {
-            console.log("out of range");
+            console.log("out of range", oldOutRate, newOutRate);
+            console.log("rates", uint(args.minOut), uint(args.maxOut));
             if (prevArgs.inAmount != args.inAmount || prevArgs.active > 0) {
                 console.log("starting inactive");
                 if (prevArgs.active > 0) {
                     newSfCtx = clearTradeOutWithContext(ctx, newSfCtx, prevArgs.destSuperToken, prevArgs.sender, oldOutRate);
                 }
-                
+
                 newSfCtx = adjustTradeOutWithContext(ctx, newSfCtx, args.srcSuperToken, args.sender, prevArgs.active > 0 ? 0 : prevArgs.inAmount, args.inAmount);
 
                 args.active = 0;
@@ -475,7 +476,7 @@ library StreamSwapLibrary {
 
         while (curIdx > 0) {
             console.log("doing one", curIdx);
-            StreamSwapState memory entry = ctx.streamSwapState[curIdx];
+            StreamSwapState storage entry = ctx.streamSwapState[curIdx];
 
             // this is basically a shorter version of what happens in the updateTrade above
             // except it just calls raw `callAgreement` and saves gas
@@ -511,7 +512,8 @@ library StreamSwapLibrary {
 
             // is the trade currently outside its range
             if ((entry.minOut != 0 && newOutRate < entry.minOut) || (entry.maxOut != 0 && newOutRate > entry.maxOut)) {
-                console.log("out of range");
+            console.log("out of range", oldOutRate, newOutRate);
+            console.log("rates", uint(entry.minOut), uint(entry.maxOut));
                 if (entry.active > 0) {
                     console.log("starting deactivate");
                     clearTradeOut(ctx, entry.destSuperToken, entry.sender, oldOutRate);
