@@ -1,5 +1,5 @@
 {
-  "name": "@streamtrade/core",
+  "name": "@streamswap/core",
   "version": "0.0.1",
   "description": "streaming exchange app for continuous buy/sell",
   "main": "index.js",
