@@ -14,6 +14,8 @@ import encodeStreamSwapData from '../utils/encodeStreamSwapData';
 
 describe('StreamSwapPool', function() {
 
+  this.timeout(8000);
+
   const TESTING_FLOW_RATE = wei(1).div(7).div(86400);
 
   let signer: Ethers.Signer;

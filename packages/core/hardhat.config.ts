@@ -29,15 +29,35 @@ task("accounts", "Prints the list of accounts", async (_, bre) => {
 const hhConfig: HardhatUserConfig = {
   defaultNetwork: 'hardhat',
 
+  paths: {
+    deploy: 'deploy/test'
+  },
+
   networks: {
     hardhat: {
       chainId: 1337,
       accounts: {
-        mnemonic: 'enrich genius online man glue impact narrow exact veteran real fiction affair'
+        mnemonic: process.env['MNEMONIC'] ||'enrich genius online man glue impact narrow exact veteran real fiction affair'
       },
+      deploy: process.env['ETH_RPC'] ? [
+        'deploy/common',
+        'deploy/goerli'
+      ] : ['deploy/test'],
       forking: process.env['ETH_RPC'] ? {
         url: process.env['ETH_RPC']
       } : undefined
+    },
+    goerli: {
+      live: true,
+      saveDeployments: true,
+      deploy: [
+        'deploy/common',
+        'deploy/goerli'
+      ],
+      url: process.env['ETH_RPC'] || 'http://goerli-eth.k8s:8545',
+      accounts: {
+        mnemonic: process.env['MNEMONIC'] ||'enrich genius online man glue impact narrow exact veteran real fiction affair'
+      },
     },
     mainnet: {
       live: true,

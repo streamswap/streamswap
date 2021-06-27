@@ -1,7 +1,7 @@
 import {HardhatRuntimeEnvironment} from 'hardhat/types';
 import {DeployFunction} from 'hardhat-deploy/types';
 
-import { StreamSwapPool__factory } from '../generated/typechain/factories/StreamSwapPool__factory';
+import { StreamSwapPool__factory } from '../../generated/typechain/factories/StreamSwapPool__factory';
 import { wei } from '@synthetixio/wei';
 import { ethers } from 'hardhat';
 

@@ -3,9 +3,9 @@ import {DeployFunction} from 'hardhat-deploy/types';
 
 import { wei } from '@synthetixio/wei';
 
-import { SuperToken__factory } from '../generated/typechain/factories/SuperToken__factory';
+import { SuperToken__factory } from '../../generated/typechain/factories/SuperToken__factory';
 import { ethers } from 'ethers';
-import { DEPLOY_ERC1820_ADDR, DEPLOY_ERC1820_RAW } from '../utils/erc1820';
+import { DEPLOY_ERC1820_ADDR, DEPLOY_ERC1820_RAW } from '../../utils/erc1820';
 
 
 
