@@ -26,7 +26,8 @@
   },
   "devDependencies": {
     "@graphprotocol/graph-cli": "^0.20.1",
-    "@graphprotocol/graph-ts": "^0.20.0"
+    "@graphprotocol/graph-ts": "^0.20.0",
+    "ws": "^7.5.0"
   },
   "dependencies": {
     "@streamswap/core": "^0.0.1"
