@@ -63,13 +63,15 @@ type Pool @entity {
   # Fields used to help derived relationship
   liquidityProviderCount: BigInt! # used to detect new exchanges
   # derived fields
-#  poolHourData: [PoolHourData!]! @derivedFrom(field: "pool")
-  swaps: [Swap!]! @derivedFrom(field: "pool")
+  poolHourData: [PoolHourData!]! @derivedFrom(field: "pool")
+  instantSwaps: [InstantSwap!]! @derivedFrom(field: "pool")
+  continuousSwaps: [ContinuousSwap!]! @derivedFrom(field: "pool")
 }
 
 type User @entity {
   id: ID!
-  swaps: [Swap!]! @derivedForm(field: "user")
+  instantSwaps: [InstantSwap!]! @derivedForm(field: "user")
+  continuousSwaps: [ContinuousSwap!]! @derivedFrom(field: "user")
 }
 
 type Transaction @entity {
@@ -77,38 +79,48 @@ type Transaction @entity {
   blockNumber: BigInt!
   timestamp: BigInt!
 
-  swaps: [Swap]!
+  instantSwaps: [InstantSwap!]! @derivedFrom(field: "transaction")
+  continuousSwaps: [ContinuousSwap!]! @derivedFrom(field: "transaction")
 }
 
-#type UnarySwapData {
-#  amountIn: BigDecimal!
-#  amountOut: BigDecimal!
-#}
-#
-#type ContinuousSwapData {
-#  # Rate is in wei/s or more accurately `10^(-token.decimals)/s`
-#  rateIn: BigDecimal!
-#  # this will be zero once it is stopped
-#  currentRateOut: BigDecimal!
-#
-#  # info to make calculating amount swapped live, store integration over all previous rates and allow for live updates
-#  # with the current data
-#  totalOutUntilLastSwap: BigDecimal!
-#  timestampLastSwap: BigInt!
-#}
-
-type Swap @entity {
+type InstantSwap @entity {
   # transaction hash + "-" + index in swaps Transaction array
   id: ID!
   pool: Pool!
   user: User!
   transaction: Transaction!
-  timestamp: BigInt! # need this to pull recent txns for specific token or pair
+  timestamp: BigInt! # need this to pull recent txns for specific token or pool
 
   tokenIn: Token!
   tokenOut: Token!
 
-#  exchange: SwapData!
+  amountIn: BigDecimal!
+  amountOut: BigDecimal!
+}
+
+type ContinuousSwap @entity {
+  # transaction hash + "-" + index in swaps Transaction array
+  id: ID!
+  pool: Pool!
+  user: User!
+  transaction: Transaction!
+  timestamp: BigInt! # need this to pull recent txns for specific token or pool
+
+  tokenIn: Token!
+  tokenOut: Token!
+
+  # whether this swap is still running, once stopped, it can never be reactivated
+  active: Boolean!
+
+  # Rate is in wei/s or more accurately `10^(-token.decimals)/s`
+  rateIn: BigDecimal!
+  # this will be zero once it is stopped
+  currentRateOut: BigDecimal!
+
+  # info to make calculating amount swapped live, store integration over all previous rates and allow for live updates
+  # with the current data
+  totalOutUntilLastSwap: BigDecimal!
+  timestampLastSwap: BigInt!
 }
 
 # Data accumulated and condensed into day stats for all of Uniswap
@@ -118,20 +130,21 @@ type StreamSwapDayData @entity {
   txCount: BigInt!
 }
 
-#type HourlyPooledToken {
-#  token: Token!
-#  reserve: BigDecimal!
-#  hourlyVolume: BigDecimal!
-#  # hourly number of transactions just for this pooled token
-#  hourlyTxns: BigInt!
-#}
+type HourlyPooledToken @entity {
+  id: ID!
+  token: Token!
+  reserve: BigDecimal!
+  hourlyVolume: BigDecimal!
+  # hourly number of transactions just for this pooled token
+  hourlyTxns: BigInt!
+}
 
 type PoolHourData @entity {
   id: ID!
   hourStartUnix: Int! # unix timestamp for start of hour
   pool: Pool!
 
-#  reserves: [HourlyPooledToken!]!
+  reserves: [HourlyPooledToken!]!
 
   # total supply for LP historical returns
   totalSupply: BigDecimal!
@@ -140,13 +153,14 @@ type PoolHourData @entity {
   hourlyTxns: BigInt!
 }
 
-#type DailyPooledToken {
-#  token: Token!
-#  reserve: BigDecimal!
-#  dailyVolume: BigDecimal!
-#  # hourly number of transactions just for this pooled token
-#  dailyTxns: BigInt!
-#}
+type DailyPooledToken @entity {
+  id: ID!
+  token: Token!
+  reserve: BigDecimal!
+  dailyVolume: BigDecimal!
+  # hourly number of transactions just for this pooled token
+  dailyTxns: BigInt!
+}
 
 # Data accumulated and condensed into day stats for each exchange
 type PoolDayData @entity {
@@ -154,7 +168,7 @@ type PoolDayData @entity {
   date: Int!
   poolAddress: Bytes!
 
-#  tokens: [DailyPooledToken!]!
+  tokens: [DailyPooledToken!]!
 
   # total supply for LP historical returns
   totalSupply: BigDecimal!
