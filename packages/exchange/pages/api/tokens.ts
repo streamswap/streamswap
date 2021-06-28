@@ -3,7 +3,7 @@ export interface TokenDef {
   readonly symbol: string;
   readonly name?: string;
   readonly decimals: number;
-  readonly contract: string;
+  readonly address: string;
 }
 
 /** User token information on top of the base definition */
