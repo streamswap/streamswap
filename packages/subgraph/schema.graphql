@@ -20,6 +20,9 @@ type Token @entity {
   name: String!
   decimals: BigInt!
 
+  # Adress of the underlying (non-super) token
+  underlyingToken: Bytes!
+
   # used for other stats like marketcap
   totalSupply: BigInt!
 
