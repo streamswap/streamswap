@@ -20,6 +20,8 @@ import { Alert } from '@material-ui/lab';
 
 import { TimePeriod } from '../utils/time';
 
+import { wei } from '@synthetixio/wei';
+
 const Exchange = () => {
 
   const placeholderTokens: TokenDef[] = [
@@ -29,6 +31,11 @@ const Exchange = () => {
 
   const [fromToken, setFromToken] = useState<TokenDef|null>(null);
   const [toToken, setToToken] = useState<TokenDef|null>(null);
+  const [inAmount, setInAmount] = useState<number|null>(null);
+
+
+  const [minOut, setMinOut] = useState<number>(0);
+  const [maxOut, setMaxOut] = useState<number>(0);
 
   const existingSwapInfo = useQuery();
     
@@ -81,7 +88,7 @@ const Exchange = () => {
             />
           </Grid>
           <Grid item xs={12} sm={4}>
-            <TextField required id="from-amount" label="0.0" fullWidth type="number" />
+            <TextField required id="from-amount" label="0.0" fullWidth type="number" onChange={(_, value) => setInAmount(value)} />
           </Grid>
           <Grid item xs={6} sm={4}>
             <Select id="from-rate-unit" defaultValue="d" fullWidth className={styles.selectInput}>
@@ -93,7 +100,7 @@ const Exchange = () => {
         <T variant="h6" className={styles.sectionHeading}>
           To
         </T>
-        <Grid container spacing={3}>
+          <Grid container spacing={3}>
           <Grid item xs={6} sm={4}>
             <Autocomplete
               options={placeholderTokens}
@@ -106,10 +113,27 @@ const Exchange = () => {
               fullWidth
             />
           </Grid>
+        </Grid>
+
+        <FormControlLabel
+          control={<Switch checked={state.checkedA} onChange={handleChange} name="checkedA" />}
+          label="Secondary"
+        />
+
+        <Grid container spacing={3}>
           <Grid item xs={6} sm={4}>
             <TextField
               id="min-received"
               label="Min Received"
+              fullWidth
+              type="number"
+              defaultValue="0"
+            />
+          </Grid>
+          <Grid item xs={6} sm={4}>
+            <TextField
+              id="max-received"
+              label="Max Received"
               fullWidth
               type="number"
               defaultValue="0"
