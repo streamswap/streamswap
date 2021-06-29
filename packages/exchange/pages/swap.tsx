@@ -9,6 +9,8 @@ import Grid from '@material-ui/core/Grid';
 import Autocomplete, { createFilterOptions } from '@material-ui/lab/Autocomplete';
 import Paper from '@material-ui/core/Paper';
 import Button from '@material-ui/core/Button';
+import Switch from '@material-ui/core/Switch';
+import FormControlLabel from '@material-ui/core/FormControlLabel';
 
 import SuperfluidSDK from '@superfluid-finance/js-sdk';
 
@@ -21,24 +23,30 @@ import { Alert } from '@material-ui/lab';
 import { TimePeriod } from '../utils/time';
 
 import { wei } from '@synthetixio/wei';
+import { useWeb3React } from '@web3-react/core';
+import { ContinuousSwap, SWAPS_FROM_ADDRESS_FROM_TOKEN } from '../queries/swaps';
+
+import { encodeStreamSwapData } from '@streamswap/core/utils/encodeStreamSwapData';
 
 const Exchange = () => {
 
+  const { account, chainId, library } = useWeb3React();
+
   const placeholderTokens: TokenDef[] = [
-    { symbol: 'USDc', name: 'USDC', decimals: 6, address: '' },
+    { symbol: 'USDC', name: 'USD Coin', decimals: 6, address: '' },
     { symbol: 'WETH', name: 'Wrapped Ether', decimals: 18, address: '' },
   ];
 
-  const [fromToken, setFromToken] = useState<TokenDef|null>(null);
-  const [toToken, setToToken] = useState<TokenDef|null>(null);
-  const [inAmount, setInAmount] = useState<number|null>(null);
+  const [inToken, setInToken] = useState<TokenDef|null>(null);
+  const [outToken, setOutToken] = useState<TokenDef|null>(null);
+  const [inAmount, setInAmount] = useState<string>('');
 
+  const [advancedEnabled, setAdvancedEnabled] = useState<boolean>(false);
 
-  const [minOut, setMinOut] = useState<number>(0);
-  const [maxOut, setMaxOut] = useState<number>(0);
+  const [minOut, setMinOut] = useState<string>('');
+  const [maxOut, setMaxOut] = useState<string>('');
 
-  const existingSwapInfo = useQuery();
-    
+  const existingSwapInfo = useQuery<ContinuousSwap[]>(SWAPS_FROM_ADDRESS_FROM_TOKEN, { skip: !account || !inToken, variables: { account, fromToken: inToken } });
 
   let swapAlert: string|null = null;
   let swapHelpText: string|null = null;
@@ -47,21 +55,34 @@ const Exchange = () => {
     swapAlert = `There is an existing continuous swap for this pair of ${}. This will be updated to the new amount if you continue.`
   }
 
+  if (!inToken || !outToken || !inAmount) {
+    swapHelpText = 'Swap'; // waiting for fields to be filled in
+  }
+  else if (!account) {
+    swapHelpText = 'Select Wallet';
+  }
+  else if (existingSwapInfo.loading) {
+    swapHelpText = 'Loading...';
+  }
+
   function executeSwap() {
     const sf = new SuperfluidSDK({
-      ethers: null
+      ethers: library
     });
 
     await sf.initialize();
 
-    const user = sf.user({
-      address: walletAddress[0],
-      token: fromToken.address
+    const user = sf.user({ 
+      address: account,
+      token: inToken!.address
     });
+
+    const ssd = existingSwapInfo.
 
     await user.flow({
         recipient: '',
-        flowRate: wei().toString(0, true)
+        flowRate: wei(inAmount).toString(0, true),
+        userData: encodeStreamSwapData(ssd)
     });
   }
 
@@ -81,14 +102,14 @@ const Exchange = () => {
               getOptionLabel={(o: TokenDef) => o.symbol}
               filterOptions={createFilterOptions({ stringify: (o) => `${o.symbol} - ${o.name}` })}
               renderInput={(params) => <TextField {...params} label="Token" />}
-              value={fromToken}
-              onChange={(_, newValue) => { setFromToken(newValue) }}
+              value={inToken}
+              onChange={(_, newValue) => { setInToken(newValue) }}
               id="from-token"
               fullWidth
             />
           </Grid>
           <Grid item xs={12} sm={4}>
-            <TextField required id="from-amount" label="0.0" fullWidth type="number" onChange={(_, value) => setInAmount(value)} />
+            <TextField required id="from-amount" label="0.0" fullWidth type="number" value={inAmount} onChange={(event) => setInAmount(parseFloat(event!.target.value))} />
           </Grid>
           <Grid item xs={6} sm={4}>
             <Select id="from-rate-unit" defaultValue="d" fullWidth className={styles.selectInput}>
@@ -107,8 +128,8 @@ const Exchange = () => {
               getOptionLabel={(o: TokenDef) => o.symbol}
               filterOptions={createFilterOptions({ stringify: (o) => `${o.symbol} - ${o.name}` })}
               renderInput={(params) => <TextField {...params} label="Token" />}
-              value={toToken}
-              onChange={(_, newValue) => { setToToken(newValue) }}
+              value={outToken}
+              onChange={(_, newValue) => { setOutToken(newValue) }}
               id="to-token"
               fullWidth
             />
@@ -116,8 +137,8 @@ const Exchange = () => {
         </Grid>
 
         <FormControlLabel
-          control={<Switch checked={state.checkedA} onChange={handleChange} name="checkedA" />}
-          label="Secondary"
+          control={<Switch checked={advancedEnabled} onChange={(_, value) => setAdvancedEnabled(value)} />}
+          label="Advanced options"
         />
 
         <Grid container spacing={3}>
@@ -127,7 +148,8 @@ const Exchange = () => {
               label="Min Received"
               fullWidth
               type="number"
-              defaultValue="0"
+              value={minOut || ''}
+              onChange={(event) => { setMinOut(newValue) }}
             />
           </Grid>
           <Grid item xs={6} sm={4}>
@@ -136,7 +158,8 @@ const Exchange = () => {
               label="Max Received"
               fullWidth
               type="number"
-              defaultValue="0"
+              value={maxOut || ''}
+              onChange={(event) => { setMaxOut(newValue) }}
             />
           </Grid>
         </Grid>
