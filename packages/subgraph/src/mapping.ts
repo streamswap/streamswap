@@ -1,6 +1,6 @@
 /* eslint-disable prefer-const */
 
-import { Address, BigDecimal, BigInt, Bytes, ethereum } from '@graphprotocol/graph-ts';
+import { Address, BigInt, Bytes, ethereum } from '@graphprotocol/graph-ts';
 import { LOG_NEW_POOL } from '../generated/StreamSwap/StreamSwapFactory';
 import {
   ContinuousSwap,
@@ -22,6 +22,7 @@ import {
 } from '../generated/templates/Pool/StreamSwapPool';
 import { SuperToken } from '../generated/StreamSwap/SuperToken';
 import { convertTokenToDecimal, ONE_BI, ZERO_BD, ZERO_BI } from './helpers';
+import { updatePoolDayData } from "./day-updates";
 
 export function handleNewPool(event: LOG_NEW_POOL): void {
   let factoryId = event.address.toHex();
@@ -37,7 +38,6 @@ export function handleNewPool(event: LOG_NEW_POOL): void {
   pool.createdAtBlockNumber = event.block.number;
   pool.instantSwapCount = ZERO_BI;
   pool.continuousSwapSetCount = ZERO_BI;
-  pool.liquidityProviderCount = BigInt.fromI32(0);
   pool.save();
 
   factory.poolCount++;
@@ -125,6 +125,8 @@ export function handleInstantSwap(event: LOG_SWAP): void {
   pooledOutToken.volume = pooledOutToken.volume.plus(swap.amountOut);
   pooledInToken.save();
   pooledOutToken.save();
+
+  updatePoolDayData(event, 'instant');
 }
 
 export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
@@ -177,6 +179,8 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   tokenIn.save();
   tokenOut.save();
   pool.save();
+
+  updatePoolDayData(event, 'continuous');
 }
 
 export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
@@ -223,6 +227,8 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
   tokenIn.save();
   tokenOut.save();
   pool.save();
+
+  updatePoolDayData(event, null);
 }
 
 export function handleJoinPool(event: LOG_JOIN): void {
