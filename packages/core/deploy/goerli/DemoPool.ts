@@ -1,11 +1,12 @@
+import fs from 'fs';
+import path from 'path';
+
 import {HardhatRuntimeEnvironment} from 'hardhat/types';
 import {DeployFunction} from 'hardhat-deploy/types';
 
 import { StreamSwapPool__factory } from '../../generated/typechain/factories/StreamSwapPool__factory';
 import { wei } from '@synthetixio/wei';
 import { ethers } from 'hardhat';
-import { Deployment } from 'hardhat-deploy/dist/types';
-import { TestToken__factory } from '../../generated/typechain';
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const {execute, save} = hre.deployments;
@@ -19,7 +20,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     await save('StreamSwapPool', {
         abi: StreamSwapPool__factory.abi,
-        address: poolAddress
+        address: poolAddress,
+        solcInput: JSON.stringify(((await hre.artifacts.getBuildInfo('contracts/StreamSwapPool.sol:StreamSwapPool'))?.input, null, '  '))
     });
 
     for(const tokenDeployName of ['SuperFakeUSDC', 'SuperFakeUNI', 'SuperFakeWBTC']) {

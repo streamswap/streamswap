@@ -37,9 +37,9 @@ const Exchange = () => {
   const web3react = useWeb3React();
 
   const tmpTokens: Token[] = [
-    { symbol: 'fUSDC', name: 'Fake USD Coin', decimals: 18, id: '0x810d19e9db5982ebfc829849f8b1d0890425753c' },
-    { symbol: 'fUNI', name: 'Fake Uniswap Token', decimals: 18, id: '0xe4cc882c78Aa6D39199Cc77EA36c534DF55748B7' },
-    { symbol: 'fWBTC', name: 'Fake Wrapped Bitcoin', decimals: 18, id: '0xe0119Ddd78739A275Fe8856d7b5d2373A1d368Ff' },
+    { symbol: 'fUSDC', name: 'Fake USD Coin', decimals: 18, id: '0x7b510c4124ecca5ac087a19cb94649df15f46adc' },
+    { symbol: 'fUNI', name: 'Fake Uniswap Token', decimals: 18, id: '0x15caea1cf600ccb34d0c6eae8bd940d33eae1b6a' },
+    { symbol: 'fWBTC', name: 'Fake Wrapped Bitcoin', decimals: 18, id: '0x5cdc1d15899034f467662b1b4c4913b7adf69067' },
   ];
 
   const [inToken, setInToken] = useState<Token|null>(null);
@@ -59,7 +59,7 @@ const Exchange = () => {
     address: web3react.account, tokenIn: inToken?.id
   }});
 
-  const poolAddress = '0x0ddb2adfecd80b76d801a8e80f393c70908bacf4';
+  const poolAddress = '0x6aafe261617748679a238a4b95ac98aef9b63a65';
   const allTokens = tmpTokens;
 
   let swapAlert: string|null = null;
@@ -130,20 +130,20 @@ const Exchange = () => {
     const cfa = new ethers.Contract('0xEd6BcbF6907D4feEEe8a8875543249bEa9D308E8', cfaJson.abi);
 
 
-    await sfc!.callAgreement('0xEd6BcbF6907D4feEEe8a8875543249bEa9D308E8', cfa!.interface.encodeFunctionData('createFlow', [
+    /*await sfc!.callAgreement('0xEd6BcbF6907D4feEEe8a8875543249bEa9D308E8', cfa!.interface.encodeFunctionData('createFlow', [
       inToken!.id,
       poolAddress,
       sum.toBN(),
       '0x'
-    ]), encodeStreamSwapData(args));
+    ]), encodeStreamSwapData(args));*/
 
-    /*await sf.cfa.createFlow({
+    await sf.cfa.createFlow({
       flowRate: sum.toString(0, true),
       sender: web3react.account,
       receiver: poolAddress,
       superToken: inToken!.id,
       userData: encodeStreamSwapData(args),
-    });*/
+    });
 
     /*
     const user = sf.user({ 
