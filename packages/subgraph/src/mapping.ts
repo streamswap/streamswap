@@ -22,7 +22,7 @@ import {
 } from '../generated/templates/Pool/StreamSwapPool';
 import { SuperToken } from '../generated/StreamSwap/SuperToken';
 import { convertTokenToDecimal, ONE_BI, ZERO_BD, ZERO_BI } from './helpers';
-import { updatePoolDayData } from "./day-updates";
+import { updatePoolDayData, updatePoolHourData } from './day-updates';
 
 export function handleNewPool(event: LOG_NEW_POOL): void {
   let factoryId = event.address.toHex();
@@ -127,6 +127,7 @@ export function handleInstantSwap(event: LOG_SWAP): void {
   pooledOutToken.save();
 
   updatePoolDayData(event, 'instant');
+  updatePoolHourData(event, 'instant');
 }
 
 export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
@@ -181,6 +182,7 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   pool.save();
 
   updatePoolDayData(event, 'continuous');
+  updatePoolHourData(event, 'continuous');
 }
 
 export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
@@ -229,6 +231,7 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
   pool.save();
 
   updatePoolDayData(event, null);
+  updatePoolHourData(event, null);
 }
 
 export function handleJoinPool(event: LOG_JOIN): void {

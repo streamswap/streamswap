@@ -131,39 +131,38 @@ type ContinuousSwap @entity {
 }
 
 type HourlyPooledToken @entity {
-  id: ID!
-  token: Token!
-  reserve: BigDecimal!
-  hourlyVolume: BigDecimal!
-  # hourly number of transactions just for this pooled token
-  hourlyTxns: BigInt!
+  id: ID! #done
+  token: Token! #done
+  reserve: BigDecimal! #done
+  hourlyVolume: BigDecimal! #done
 }
 
 type PoolHourData @entity {
   id: ID!
-  hourStartUnix: Int! # unix timestamp for start of hour
+  date: Int! # unix timestamp for start of hour
   pool: Pool!
 
-  reserves: [HourlyPooledToken!]!
+  tokens: [HourlyPooledToken!]! #done
 
   # volume stats
-  hourlyTxns: BigInt!
+  hourlyInstantSwapCount: BigInt! #done
+  hourlyContinuousSwapSetCount: BigInt! #done
 }
 
 type DailyPooledToken @entity {
-  id: ID!
-  token: Token!
-  reserve: BigDecimal!
-  dailyVolume: BigDecimal!
+  id: ID! #done
+  token: Token! #done
+  reserve: BigDecimal! #done
+  dailyVolume: BigDecimal! #done
 }
 
 # Data accumulated and condensed into day stats for each exchange
 type PoolDayData @entity {
   id: ID! #done
   date: Int! #done
-  poolAddress: Bytes! #done
+  pool: Pool! #done
 
-  tokens: [DailyPooledToken!]!
+  tokens: [DailyPooledToken!]! #done
 
   # volume stats
   dailyInstantSwapCount: BigInt! #done
@@ -177,7 +176,8 @@ type TokenDayData @entity {
 
   # volume stats
   dailyVolumeToken: BigDecimal!
-  dailyTxns: BigInt!
+  dailyInstantSwapCount: BigInt!
+  dailyContinuousSwapSetCount: BigInt!
 
   # liquidity stats
   totalLiquidityToken: BigDecimal!
