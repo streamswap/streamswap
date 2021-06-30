@@ -22,7 +22,7 @@ import {
 } from '../generated/templates/Pool/StreamSwapPool';
 import { SuperToken } from '../generated/StreamSwap/SuperToken';
 import { convertTokenToDecimal, ONE_BI, ZERO_BD, ZERO_BI } from './helpers';
-import { updatePoolDayData, updatePoolHourData } from './day-updates';
+import { updatePoolDayData, updatePoolHourData, updateTokenDayData } from './day-updates';
 
 export function handleNewPool(event: LOG_NEW_POOL): void {
   let factoryId = event.address.toHex();
@@ -128,6 +128,8 @@ export function handleInstantSwap(event: LOG_SWAP): void {
 
   updatePoolDayData(event, 'instant');
   updatePoolHourData(event, 'instant');
+  updateTokenDayData(tokenIn, event, 'instant');
+  updateTokenDayData(tokenOut, event, 'instant');
 }
 
 export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
@@ -183,6 +185,7 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
 
   updatePoolDayData(event, 'continuous');
   updatePoolHourData(event, 'continuous');
+  updateTokenDayData(tokenIn, event, 'continuous');
 }
 
 export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
@@ -232,6 +235,7 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
 
   updatePoolDayData(event, null);
   updatePoolHourData(event, null);
+  updateTokenDayData(tokenOut, event, null);
 }
 
 export function handleJoinPool(event: LOG_JOIN): void {
@@ -246,6 +250,9 @@ export function handleJoinPool(event: LOG_JOIN): void {
   pooledToken.save();
   tokenIn.totalLiquidity.plus(addedTokens);
   tokenIn.save();
+  updatePoolDayData(event, null);
+  updatePoolHourData(event, null);
+  updateTokenDayData(tokenIn, event, null);
 }
 
 export function handleExitPool(event: LOG_EXIT): void {
@@ -254,10 +261,13 @@ export function handleExitPool(event: LOG_EXIT): void {
   let poolId = event.address.toHex();
   let pooledTokenId = `${tokenId}-${poolId}`;
   let pooledToken = PooledToken.load(pooledTokenId);
-  let tokenIn = Token.load(tokenId);
-  let removedTokens = convertTokenToDecimal(event.params.tokenAmountOut, tokenIn.decimals);
+  let tokenOut = Token.load(tokenId);
+  let removedTokens = convertTokenToDecimal(event.params.tokenAmountOut, tokenOut.decimals);
   pooledToken.reserve = pooledToken.reserve.minus(removedTokens);
   pooledToken.save();
-  tokenIn.totalLiquidity.minus(removedTokens);
-  tokenIn.save();
+  tokenOut.totalLiquidity.minus(removedTokens);
+  tokenOut.save();
+  updatePoolDayData(event, null);
+  updatePoolHourData(event, null);
+  updateTokenDayData(tokenOut, event, null);
 }

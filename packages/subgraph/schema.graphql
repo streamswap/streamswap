@@ -170,15 +170,15 @@ type PoolDayData @entity {
 }
 
 type TokenDayData @entity {
-  id: ID!
-  date: Int!
-  token: Token!
+  id: ID! #done
+  date: Int! #done
+  token: Token! #done
 
   # volume stats
-  dailyVolumeToken: BigDecimal!
-  dailyInstantSwapCount: BigInt!
-  dailyContinuousSwapSetCount: BigInt!
+  dailyVolumeToken: BigDecimal! #done
+  dailyInstantSwapCount: BigInt! #done
+  dailyContinuousSwapSetCount: BigInt! #done
 
   # liquidity stats
-  totalLiquidityToken: BigDecimal!
+  totalLiquidityToken: BigDecimal! #done
 }
