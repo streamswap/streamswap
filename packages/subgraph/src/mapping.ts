@@ -179,6 +179,14 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
 
 export function handleJoinPool(event: LOG_JOIN): void {
   makeUser(event.params.caller);
+  let tokenId = event.params.tokenIn.toHex();
+  let poolId = event.address.toHex();
+  let pooledTokenId = `${tokenId}-${poolId}`;
+  let pooledToken = PooledToken.load(pooledTokenId);
+  let tokenIn = Token.load(tokenId);
+  let addedTokens = convertTokenToDecimal(event.params.tokenAmountIn, tokenIn.decimals);
+  pooledToken.reserve = pooledToken.reserve.plus(addedTokens);
+  pooledToken.save();
 }
 
 export function handleExitPool(event: LOG_EXIT): void {
