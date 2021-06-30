@@ -2,6 +2,7 @@
 
 import { Address, BigInt, Bytes, ethereum } from '@graphprotocol/graph-ts';
 import { LOG_NEW_POOL } from '../generated/StreamSwap/StreamSwapFactory';
+import { Pool as PoolTemplate } from '../generated/templates';
 import {
   ContinuousSwap,
   InstantSwap,
@@ -25,6 +26,8 @@ import { convertTokenToDecimal, ONE_BI, ZERO_BD, ZERO_BI } from './helpers';
 import { updatePoolDayData, updatePoolHourData, updateTokenDayData } from './day-updates';
 
 export function handleNewPool(event: LOG_NEW_POOL): void {
+  PoolTemplate.create(event.params.pool);
+
   let factoryId = event.address.toHex();
   let factory = StreamSwapFactory.load(factoryId);
   if (!factory) {
