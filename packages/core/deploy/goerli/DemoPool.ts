@@ -30,7 +30,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
         await execute('StreamSwapPool', {
             from: deployer
-        }, 'bind', tokenDeploy.address, wei(100).toBN(), wei(2).toBN());
+        }, 'bind', tokenDeploy.address, wei(500).toBN(), wei(2).toBN());
     };
 
     // finalize, which generates new pool tokens

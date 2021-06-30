@@ -39,6 +39,14 @@ describe('StreamSwapPool', function() {
     
     myAddress = await signer.getAddress();
 
+    /*sf = Superfluid__factory.connect('0x22ff293e14F1EC3A09B137e9e06084AFd63adDF9', signer);
+    cfa = ConstantFlowAgreementV1__factory.connect('0xEd6BcbF6907D4feEEe8a8875543249bEa9D308E8', signer);
+    streamSwap = StreamSwapPool__factory.connect('0x0ddb2adfecd80b76d801a8e80f393c70908bacf4', signer);
+
+    superTokenA = SuperToken__factory.connect('0x810d19e9db5982ebfc829849f8b1d0890425753c', signer);
+    superTokenB = SuperToken__factory.connect('0xe4cc882c78Aa6D39199Cc77EA36c534DF55748B7', signer);
+    superTokenC = SuperToken__factory.connect('0xe0119Ddd78739A275Fe8856d7b5d2373A1d368Ff', signer);*/
+
     await deployments.fixture();
 
     const sfDeploy = await deployments.get('Superfluid');
@@ -48,12 +56,12 @@ describe('StreamSwapPool', function() {
     cfa = ConstantFlowAgreementV1__factory.connect((await deployments.get('ConstantFlowAgreementV1')).address, signer);
     streamSwap = StreamSwapPool__factory.connect(streamSwapDeploy.address, signer);
 
-    tokenA = TestToken__factory.connect((await deployments.get('TokenA')).address, signer);
-    tokenB = TestToken__factory.connect((await deployments.get('TokenB')).address, signer);
-    tokenC = TestToken__factory.connect((await deployments.get('TokenC')).address, signer);
-    superTokenA = SuperToken__factory.connect((await deployments.get('SuperTokenA')).address, signer);
-    superTokenB = SuperToken__factory.connect((await deployments.get('SuperTokenB')).address, signer);
-    superTokenC = SuperToken__factory.connect((await deployments.get('SuperTokenC')).address, signer);
+    tokenA = TestToken__factory.connect((await deployments.get('FakeUSDC')).address, signer);
+    tokenB = TestToken__factory.connect((await deployments.get('FakeUNI')).address, signer);
+    tokenC = TestToken__factory.connect((await deployments.get('FakeWBTC')).address, signer);
+    superTokenA = SuperToken__factory.connect((await deployments.get('SuperFakeUSDC')).address, signer);
+    superTokenB = SuperToken__factory.connect((await deployments.get('SuperFakeUNI')).address, signer);
+    superTokenC = SuperToken__factory.connect((await deployments.get('SuperFakeWBTC')).address, signer);
   });
 
   it('should swap single stream', async () => {

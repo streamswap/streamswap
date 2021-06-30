@@ -1,7 +1,6 @@
 import Wei from '@synthetixio/wei';
 import { ethers } from 'ethers';
 
-
 export interface StreamSwapArgs {
     destSuperToken: string;
     inAmount: Wei;

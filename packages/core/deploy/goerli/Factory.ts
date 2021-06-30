@@ -5,11 +5,22 @@ import { StreamSwapPool__factory } from '../../generated/typechain/factories/Str
 import { wei } from '@synthetixio/wei';
 import { ethers } from 'hardhat';
 import { cfaDeployAddress, superfluidDeployAddress } from './constants';
-import { Superfluid__factory, SuperTokenFactory__factory, SuperToken__factory } from '../../generated/typechain';
+import { ConstantFlowAgreementV1__factory, Superfluid__factory, SuperTokenFactory__factory, SuperToken__factory } from '../../generated/typechain';
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const {deploy, execute, save} = hre.deployments;
     const {deployer} = await hre.getNamedAccounts();
+
+    // save superfluid existing
+
+    await save('Superfluid', {
+        abi: Superfluid__factory.abi,
+        address: superfluidDeployAddress
+    });
+    await save('ConstantFlowAgreementV1', {
+        abi: ConstantFlowAgreementV1__factory.abi,
+        address: cfaDeployAddress
+    });
 
     const streamSwapLibraryDeploy = await deploy('StreamSwapLibrary', {
         from: deployer
@@ -22,14 +33,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         }
     });
 
-    const ssf = await deploy('StreamSwapFactory', {
+    await deploy('StreamSwapFactory', {
         from: deployer,
         args: [ streamSwapFactoryHelperDeploy.address, superfluidDeployAddress, cfaDeployAddress ],
     });
-
-    await execute('StreamSwapFactory', {
-        from: deployer
-    }, 'newBPool');
 
     //if(ssf.newlyDeployed) {
         // make super tokens

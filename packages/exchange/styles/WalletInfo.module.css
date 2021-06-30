@@ -1,0 +1,13 @@
+.walletInfo {
+    width: 100%;
+    min-height: 60px;
+    height: 60px;
+    border-bottom: 1px solid #eaeaea;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.walletPickButton {
+    margin: 10px;
+}

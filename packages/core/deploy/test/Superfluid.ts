@@ -73,69 +73,69 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         gasLimit: 12000000,
     }, 'registerAgreementClass', sfDeploy.address!, cfaDeploy.address);
 
-    const tkaDeploy = await hre.deployments.get('TokenA');
-    const tkbDeploy = await hre.deployments.get('TokenB');
-    const tkcDeploy = await hre.deployments.get('TokenC');
+    const tkaDeploy = await hre.deployments.get('FakeUSDC');
+    const tkbDeploy = await hre.deployments.get('FakeUNI');
+    const tkcDeploy = await hre.deployments.get('FakeWBTC');
 
     const xtkaExec = await execute('SuperTokenFactory', {
         from: deployer,
         gasLimit: 12000000,
-    }, 'createERC20Wrapper(address,uint8,string,string)', tkaDeploy.address, 0, 'Super Token A', 'xTKA');
+    }, 'createERC20Wrapper(address,uint8,string,string)', tkaDeploy.address, 0, 'Super Fake USD Coin', 'xfUSDC');
 
     const xtkbExec = await execute('SuperTokenFactory', {
         from: deployer,
         gasLimit: 12000000,
-    }, 'createERC20Wrapper(address,uint8,string,string)', tkbDeploy.address, 0, 'Super Token B', 'XTKB');
+    }, 'createERC20Wrapper(address,uint8,string,string)', tkbDeploy.address, 0, 'Super Fake UNI Token', 'xfUNI');
 
     const xtkcExec = await execute('SuperTokenFactory', {
         from: deployer,
         gasLimit: 12000000,
-    }, 'createERC20Wrapper(address,uint8,string,string)', tkcDeploy.address, 0, 'Super Token C', 'XTKC');
+    }, 'createERC20Wrapper(address,uint8,string,string)', tkcDeploy.address, 0, 'Super Fake Wrapped Bitcoin', 'xfBTC');
 
     const xtkaAddress = '0x' + xtkaExec.events![0].topics[1].slice(26);
     const xtkbAddress = '0x' + xtkbExec.events![0].topics[1].slice(26);
     const xtkcAddress = '0x' + xtkcExec.events![0].topics[1].slice(26);
 
-    await save('SuperTokenA', {
+    await save('SuperFakeUSDC', {
         abi: SuperToken__factory.abi,
         address: xtkaAddress
     });
 
-    await save('SuperTokenB', {
+    await save('SuperFakeUNI', {
         abi: SuperToken__factory.abi,
         address: xtkbAddress
     });
 
-    await save('SuperTokenC', {
+    await save('SuperFakeWBTC', {
         abi: SuperToken__factory.abi,
         address: xtkcAddress
     });
 
-    await execute('TokenA', {
+    await execute('FakeUSDC', {
         from: deployer
     }, 'approve', xtkaAddress, ethers.constants.MaxInt256);
 
-    await execute('TokenB', {
+    await execute('FakeUNI', {
         from: deployer
     }, 'approve', xtkbAddress, ethers.constants.MaxInt256);
 
-    await execute('TokenC', {
+    await execute('FakeWBTC', {
         from: deployer
     }, 'approve', xtkcAddress, ethers.constants.MaxInt256);
 
-    await execute('SuperTokenA', {
+    await execute('SuperFakeUSDC', {
         from: deployer
     }, 'upgrade', wei(5000).toBN());
 
-    await execute('SuperTokenB', {
+    await execute('SuperFakeUNI', {
         from: deployer
     }, 'upgrade', wei(5000).toBN());
 
-    await execute('SuperTokenC', {
+    await execute('SuperFakeWBTC', {
         from: deployer
     }, 'upgrade', wei(5000).toBN());
 };
 
 export default func;
 func.tags = ['Superfluid', 'SuperTokenFactory', 'SuperTokenFactoryHelper', 'ConstantFlowAgreementV1'];
-func.dependencies = ['TokenA', 'TokenB'];
+func.dependencies = ['FakeUSDC', 'FakeUNI', 'FakeWBTC'];

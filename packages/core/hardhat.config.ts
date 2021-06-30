@@ -42,7 +42,7 @@ const hhConfig: HardhatUserConfig = {
       deploy: process.env['ETH_RPC'] ? [
         'deploy/common',
         'deploy/goerli'
-      ] : ['deploy/test'],
+      ] : ['deploy/common', 'deploy/test'],
       forking: process.env['ETH_RPC'] ? {
         url: process.env['ETH_RPC']
       } : undefined
