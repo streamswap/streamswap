@@ -11,7 +11,7 @@ import {
   Token,
   TokenDayData,
 } from '../generated/schema';
-import { ONE_BI, ZERO_BD, ZERO_BI } from './helpers';
+import { ONE_BI, ZERO_BD, ZERO_BI, assert } from './helpers';
 
 let BI_DAY = BigInt.fromI32(86400);
 let BI_HOUR = BigInt.fromI32(3600);
@@ -21,8 +21,9 @@ export function updatePoolDayData(event: ethereum.Event, type?: string): PoolDay
   let dayId = timestamp.div(BI_DAY);
   let dayStartTimestamp = dayId.times(BI_DAY);
   let poolId = event.address.toHex();
-  let dayPoolID = `${poolId}-${dayId}`;
+  let dayPoolID = poolId.concat('-').concat(dayId.toString());
   let pool = Pool.load(poolId);
+  assert(pool != null, "Pool must be defined");
   let poolDayData = PoolDayData.load(dayPoolID);
   if (!poolDayData) {
     poolDayData = new PoolDayData(dayPoolID);
@@ -30,14 +31,18 @@ export function updatePoolDayData(event: ethereum.Event, type?: string): PoolDay
     poolDayData.pool = poolId;
     poolDayData.dailyInstantSwapCount = ZERO_BI;
     poolDayData.dailyContinuousSwapSetCount = ZERO_BI;
-    poolDayData.tokens = [];
+    poolDayData.tokens = [] as Array<string>;
   }
 
-  let poolTokens = pool.tokens;
+  let poolTokens = pool.tokenAddresses;
   for (let i = 0; i < poolTokens.length; ++i) {
-    let tokenId = poolTokens[i];
-    let pooledToken = PooledToken.load(`${tokenId}-${poolId}`);
-    let dailyPooledTokenId = `${tokenId}-${poolId}-${dayId}`;
+    let tokenId = poolTokens[i].toHex();
+    let pooledToken = PooledToken.load(tokenId.concat('-').concat(poolId));
+    let dailyPooledTokenId = tokenId
+      .concat('-')
+      .concat(poolId)
+      .concat('-')
+      .concat(dayId.toString());
     let dailyPooledToken =
       DailyPooledToken.load(dailyPooledTokenId) || new DailyPooledToken(dailyPooledTokenId);
     dailyPooledToken.token = tokenId;
@@ -45,7 +50,7 @@ export function updatePoolDayData(event: ethereum.Event, type?: string): PoolDay
     dailyPooledToken.dailyVolume = pooledToken.volume;
     dailyPooledToken.save();
     if (!poolDayData.tokens.includes(dailyPooledTokenId)) {
-      poolDayData.tokens.push(dailyPooledTokenId);
+      poolDayData.tokens = poolDayData.tokens.concat([dailyPooledTokenId]);
     }
   }
 
@@ -64,7 +69,7 @@ export function updatePoolHourData(event: ethereum.Event, type?: string): PoolHo
   let hourId = timestamp.div(BI_HOUR);
   let hourStartTimestamp = hourId.times(BI_HOUR);
   let poolId = event.address.toHex();
-  let hourPoolID = `${poolId}-${hourId}`;
+  let hourPoolID = poolId.concat('-').concat(hourId.toString());
   let pool = Pool.load(poolId);
   let poolHourData = PoolHourData.load(hourPoolID);
   if (!poolHourData) {
@@ -76,19 +81,23 @@ export function updatePoolHourData(event: ethereum.Event, type?: string): PoolHo
     poolHourData.tokens = [];
   }
 
-  let poolTokens = pool.tokens;
+  let poolTokens = pool.tokenAddresses;
   for (let i = 0; i < poolTokens.length; ++i) {
-    let tokenId = poolTokens[i];
-    let pooledToken = PooledToken.load(`${tokenId}-${poolId}`);
-    let dailyPooledTokenId = `${tokenId}-${poolId}-${hourId}`;
+    let tokenId = poolTokens[i].toHex();
+    let pooledToken = PooledToken.load(tokenId.concat('-').concat(poolId.toString()));
+    let hourlyPooledTokenId = tokenId
+      .concat('-')
+      .concat(poolId)
+      .concat('-')
+      .concat(hourId.toString());
     let hourlyPooledToken =
-      HourlyPooledToken.load(dailyPooledTokenId) || new HourlyPooledToken(dailyPooledTokenId);
+      HourlyPooledToken.load(hourlyPooledTokenId) || new HourlyPooledToken(hourlyPooledTokenId);
     hourlyPooledToken.token = tokenId;
     hourlyPooledToken.reserve = pooledToken.reserve;
     hourlyPooledToken.hourlyVolume = pooledToken.volume;
     hourlyPooledToken.save();
-    if (!poolHourData.tokens.includes(dailyPooledTokenId))
-      poolHourData.tokens.push(dailyPooledTokenId);
+    if (!poolHourData.tokens.includes(hourlyPooledTokenId))
+      poolHourData.tokens = poolHourData.tokens.concat([hourlyPooledTokenId]);
   }
 
   if (type == 'continuous') {
@@ -110,7 +119,7 @@ export function updateTokenDayData(
   let timestamp = event.block.timestamp;
   let dayId = timestamp.div(BI_DAY);
   let dayStartTimestamp = dayId.times(BI_DAY);
-  let tokenDayID = `${token.id}-${dayId}`;
+  let tokenDayID = token.id.toString().concat('-').concat(dayId.toString());
 
   let tokenDayData = TokenDayData.load(tokenDayID);
   if (!tokenDayData) {

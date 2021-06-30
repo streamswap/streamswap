@@ -53,6 +53,7 @@ type Pool @entity {
 
   # tokens stored in the pool
   tokens: [PooledToken!]! @derivedFrom(field: "pool")
+  tokenAddresses: [Bytes!]!
 
   instantSwapCount: BigInt! #done
   continuousSwapSetCount: BigInt! #done
@@ -69,7 +70,7 @@ type Pool @entity {
 
 type User @entity {
   id: ID! #done
-  instantSwaps: [InstantSwap!]! @derivedForm(field: "user")
+  instantSwaps: [InstantSwap!]! @derivedFrom(field: "user")
   continuousSwaps: [ContinuousSwap!]! @derivedFrom(field: "user")
 }
 

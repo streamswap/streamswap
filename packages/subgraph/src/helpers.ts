@@ -44,3 +44,7 @@ export function equalToZero(value: BigDecimal): boolean {
 export function isNullEthValue(value: string): boolean {
   return value == '0x0000000000000000000000000000000000000000000000000000000000000001';
 }
+
+export function assert(statement: boolean, description?: string): void {
+  if (!statement) throw new Error(description);
+}

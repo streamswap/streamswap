@@ -21,9 +21,6 @@ dataSources:
       abis:
         - name: StreamSwapFactory
           file: ./node_modules/@streamswap/core/artifacts/contracts/StreamSwapFactory.sol/StreamSwapFactory.json
-        # used in place of ERC20
-        - name: SuperToken
-          file: ./node_modules/@streamswap/core/artifacts/@superfluid-finance/ethereum-contracts/contracts/superfluid/SuperToken.sol/SuperToken.json
       eventHandlers:
         - event: LOG_NEW_POOL(indexed address,indexed address)
           handler: handleNewPool
@@ -43,6 +40,8 @@ templates:
         - Pool
         - Token
       abis:
+        - name: SuperToken
+          file: ./node_modules/@streamswap/core/artifacts/@superfluid-finance/ethereum-contracts/contracts/superfluid/SuperToken.sol/SuperToken.json
         - name: StreamSwapPool
           file: ./node_modules/@streamswap/core/artifacts/contracts/StreamSwapPool.sol/StreamSwapPool.json
       eventHandlers:
