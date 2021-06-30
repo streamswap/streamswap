@@ -6,9 +6,6 @@ type StreamSwapFactory @entity {
 
   # pool info
   poolCount: Int! #done
-
-  # transactions
-  txCount: BigInt!
 }
 
 type Token @entity {
@@ -26,10 +23,10 @@ type Token @entity {
   # used for other stats like marketcap
   totalSupply: BigInt! #done
 
-  # transactions across all pairs
-  txCount: BigInt!
+  instantSwapCount: BigInt! #done
+  continuousSwapSetCount: BigInt! #done
 
-  # liquidity across all pairs
+  # liquidity across all pools
   totalLiquidity: BigDecimal! #done
 
   # derived fields
@@ -57,7 +54,8 @@ type Pool @entity {
   # tokens stored in the pool
   tokens: [PooledToken!]! @derivedFrom(field: "pool")
 
-  txCount: BigInt!
+  instantSwapCount: BigInt! #done
+  continuousSwapSetCount: BigInt! #done
 
   # creation stats
   createdAtTimestamp: BigInt! #done

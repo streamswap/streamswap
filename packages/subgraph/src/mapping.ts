@@ -21,7 +21,7 @@ import {
   LOG_SWAP,
 } from '../generated/templates/Pool/StreamSwapPool';
 import { SuperToken } from '../generated/StreamSwap/SuperToken';
-import { convertTokenToDecimal, ZERO_BD, ZERO_BI } from './helpers';
+import { convertTokenToDecimal, ONE_BI, ZERO_BD, ZERO_BI } from './helpers';
 
 export function handleNewPool(event: LOG_NEW_POOL): void {
   let factoryId = event.address.toHex();
@@ -29,14 +29,14 @@ export function handleNewPool(event: LOG_NEW_POOL): void {
   if (!factory) {
     factory = new StreamSwapFactory(factoryId);
     factory.poolCount = 0;
-    factory.txCount = BigInt.fromI32(0);
   }
 
   let poolId = event.params.pool.toHex();
   let pool = new Pool(poolId);
   pool.createdAtTimestamp = event.block.timestamp;
   pool.createdAtBlockNumber = event.block.number;
-  pool.txCount = BigInt.fromI32(0);
+  pool.instantSwapCount = ZERO_BI;
+  pool.continuousSwapSetCount = ZERO_BI;
   pool.liquidityProviderCount = BigInt.fromI32(0);
   pool.save();
 
@@ -53,7 +53,8 @@ export function handleNewToken(event: LOG_BIND_NEW): void {
     token.name = contract.name();
     token.decimals = BigInt.fromI32(contract.decimals());
     token.totalSupply = contract.totalSupply();
-    token.txCount = BigInt.fromI32(0);
+    token.instantSwapCount = ZERO_BI;
+    token.continuousSwapSetCount = ZERO_BI;
     token.totalLiquidity = ZERO_BD;
     token.underlyingToken = contract.getUnderlyingToken();
     token.save();
@@ -128,6 +129,7 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   let tokenOut = Token.load(tokenOutId);
 
   let poolId = event.address.toHex();
+  let pool = Pool.load(poolId);
 
   let swapId = Bytes.fromHexString(
     `${userId}${poolId.slice(2)}${tokenInId.slice(2)}${tokenOutId.slice(2)}`,
@@ -147,13 +149,22 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   swap.maxOut = convertTokenToDecimal(event.params.maxOut, tokenOut.decimals);
   swap.rateIn = convertTokenToDecimal(event.params.tokenRateIn, tokenIn.decimals);
   swap.save();
+
+  tokenIn.instantSwapCount = tokenIn.instantSwapCount.plus(ONE_BI);
+  tokenOut.instantSwapCount = tokenOut.instantSwapCount.plus(ONE_BI);
+  pool.instantSwapCount = pool.instantSwapCount.plus(ONE_BI);
+  tokenIn.save();
+  tokenOut.save();
+  pool.save();
 }
 
 export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
   let userId = event.params.receiver.toHex();
   let poolId = event.address.toHex();
+  let pool = Pool.load(poolId);
   let tokenInId = event.params.tokenIn.toHex();
   let tokenOutId = event.params.tokenOut.toHex();
+  let tokenIn = Token.load(tokenInId);
   let tokenOut = Token.load(tokenOutId);
   let swapId = Bytes.fromHexString(
     `${userId}${poolId.slice(2)}${tokenInId.slice(2)}${tokenOutId.slice(2)}`,
@@ -175,6 +186,13 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
   swap.totalOutUntilLastSwap = prevTotal.plus(prevRate.times(dt));
   swap.timestampLastSwap = curTimestamp;
   swap.save();
+
+  tokenIn.continuousSwapSetCount = tokenIn.continuousSwapSetCount.plus(ONE_BI);
+  tokenOut.continuousSwapSetCount = tokenOut.continuousSwapSetCount.plus(ONE_BI);
+  pool.continuousSwapSetCount = pool.continuousSwapSetCount.plus(ONE_BI);
+  tokenIn.save();
+  tokenOut.save();
+  pool.save();
 }
 
 export function handleJoinPool(event: LOG_JOIN): void {
