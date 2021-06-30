@@ -104,8 +104,8 @@ export function handleInstantSwap(event: LOG_SWAP): void {
   let poolId = event.address.toHex();
   let tokenInId = event.params.tokenIn.toHex();
   let tokenOutId = event.params.tokenOut.toHex();
-  let tokenIn = Token.load(tokenInId);
-  let tokenOut = Token.load(tokenOutId);
+  let tokenIn = Token.load(tokenInId)!;
+  let tokenOut = Token.load(tokenOutId)!;
 
   let swapId = `${transactionId}-${event.logIndex}`;
   let swap = new InstantSwap(swapId);
@@ -138,8 +138,8 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
 
   let tokenInId = event.params.tokenIn.toHex();
   let tokenOutId = event.params.tokenOut.toHex();
-  let tokenIn = Token.load(tokenInId);
-  let tokenOut = Token.load(tokenOutId);
+  let tokenIn = Token.load(tokenInId)!;
+  let tokenOut = Token.load(tokenOutId)!;
 
   let poolId = event.address.toHex();
   let pool = Pool.load(poolId);
@@ -196,8 +196,8 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
 
   let tokenInId = event.params.tokenIn.toHex();
   let tokenOutId = event.params.tokenOut.toHex();
-  let tokenIn = Token.load(tokenInId);
-  let tokenOut = Token.load(tokenOutId);
+  let tokenIn = Token.load(tokenInId)!;
+  let tokenOut = Token.load(tokenOutId)!;
 
   let pooledOutTokenId = `${tokenOutId}-${poolId}`;
   let pooledOutToken = PooledToken.load(pooledOutTokenId);
@@ -244,7 +244,7 @@ export function handleJoinPool(event: LOG_JOIN): void {
   let poolId = event.address.toHex();
   let pooledTokenId = `${tokenId}-${poolId}`;
   let pooledToken = PooledToken.load(pooledTokenId);
-  let tokenIn = Token.load(tokenId);
+  let tokenIn = Token.load(tokenId)!;
   let addedTokens = convertTokenToDecimal(event.params.tokenAmountIn, tokenIn.decimals);
   pooledToken.reserve = pooledToken.reserve.plus(addedTokens);
   pooledToken.save();
@@ -261,7 +261,7 @@ export function handleExitPool(event: LOG_EXIT): void {
   let poolId = event.address.toHex();
   let pooledTokenId = `${tokenId}-${poolId}`;
   let pooledToken = PooledToken.load(pooledTokenId);
-  let tokenOut = Token.load(tokenId);
+  let tokenOut = Token.load(tokenId)!;
   let removedTokens = convertTokenToDecimal(event.params.tokenAmountOut, tokenOut.decimals);
   pooledToken.reserve = pooledToken.reserve.minus(removedTokens);
   pooledToken.save();

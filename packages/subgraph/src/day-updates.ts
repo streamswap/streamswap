@@ -115,7 +115,7 @@ export function updateTokenDayData(
   let tokenDayData = TokenDayData.load(tokenDayID);
   if (!tokenDayData) {
     tokenDayData = new TokenDayData(tokenDayID);
-    tokenDayData.date = dayStartTimestamp;
+    tokenDayData.date = dayStartTimestamp.toI32();
     tokenDayData.token = token.id;
     tokenDayData.dailyVolumeToken = ZERO_BD;
     tokenDayData.dailyInstantSwapCount = ZERO_BI;
