@@ -57,22 +57,6 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         uint256         tokenAmountOut
     );
 
-    event LOG_SET_FLOW(
-        address indexed caller,
-        address indexed tokenIn,
-        address indexed tokenOut,
-        uint256         minOut,
-        uint256         maxOut,
-        uint256         tokenRateIn
-    );
-
-    event LOG_SET_FLOW_RATE(
-        address indexed receiver,
-        address indexed tokenIn,
-        address indexed tokenOut,
-        uint256         tokenRateOut
-    );
-
     event LOG_BIND_NEW(
         address indexed token
     );
@@ -398,6 +382,9 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         _superTokens.push(token);
         _underlyingToSuperToken[ISuperToken(token).getUnderlyingToken()] = token;
         IERC20(ISuperToken(token).getUnderlyingToken()).approve(token, type(uint).max);
+
+        emit LOG_BIND_NEW(token);
+
         rebind(token, balance, denorm);
     }
 
