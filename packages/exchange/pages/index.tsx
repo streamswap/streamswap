@@ -9,18 +9,6 @@ import T from '@material-ui/core/Typography';
 const Home = () => (
   <MainLayout title="Home">
     <Grid container spacing={4}>
-      <Grid item xs={12}>
-        <T className={styles.title} variant="h1">
-          Streamswap
-        </T>
-        <T className={styles.description} variant="subtitle1" component="p">
-          Continuous exchange of{' '}
-          <a href="https://superfluid.finance" target="_blank" rel="noopener noreferrer">
-            Superfliud
-          </a>{' '}
-          streams
-        </T>
-      </Grid>
       <Grid item md={6} xs={12}>
         <Link href="/exchange">
           <Card className={styles.card}>

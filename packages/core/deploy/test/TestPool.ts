@@ -39,19 +39,19 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         address: poolAddress
     });
 
-    const tkaDeploy = await hre.deployments.get('SuperTokenA');
-    const tkbDeploy = await hre.deployments.get('SuperTokenB');
-    const tkcDeploy = await hre.deployments.get('SuperTokenC');
+    const tkaDeploy = await hre.deployments.get('SuperFakeUSDC');
+    const tkbDeploy = await hre.deployments.get('SuperFakeUNI');
+    const tkcDeploy = await hre.deployments.get('SuperFakeWBTC');
 
-    await execute('TokenA', {
+    await execute('FakeUSDC', {
         from: deployer
     }, 'approve', poolAddress, ethers.constants.MaxUint256);
 
-    await execute('TokenB', {
+    await execute('FakeUNI', {
         from: deployer
     }, 'approve', poolAddress, ethers.constants.MaxUint256);
 
-    await execute('TokenC', {
+    await execute('FakeWBTC', {
         from: deployer
     }, 'approve', poolAddress, ethers.constants.MaxUint256);
 
@@ -78,4 +78,4 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
 export default func;
 func.tags = ['StreamSwapFactory', 'StreamSwapPool'];
-func.dependencies = ['Superfluid', 'ConstantFlowAgreementV1'];
+func.dependencies = ['Superfluid', 'ConstantFlowAgreementV1', 'FakeUSDC', 'FakeUNI', 'FakeWBTC'];

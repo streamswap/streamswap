@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPLv3
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.7.6;
 pragma abicoder v2;
 
@@ -76,6 +76,22 @@ library StreamSwapLibrary {
         uint denorm;  // denormalized weight
         uint balance; // balance (as of last balancer pool operation). this needs to be recorded for remembering relative stream amts
     }
+
+    event LOG_SET_FLOW(
+        address indexed caller,
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256         minOut,
+        uint256         maxOut,
+        uint256         tokenRateIn
+    );
+
+    event LOG_SET_FLOW_RATE(
+        address indexed receiver,
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256         tokenRateOut
+    );
 
     function decodeStreamSwapData(bytes memory d) internal pure returns (StreamSwapArgs memory ssa) {
         (
@@ -312,6 +328,8 @@ library StreamSwapLibrary {
             newSfCtx = adjustTradeOutWithContext(ctx, newSfCtx, prevArgs.destSuperToken, prevArgs.sender, oldOutRate, newOutRate);
         }
 
+        emit LOG_SET_FLOW_RATE(args.sender, args.srcSuperToken, args.destSuperToken, newOutRate);
+
         return newSfCtx;
     }
 
@@ -361,6 +379,8 @@ library StreamSwapLibrary {
                     active: entry.active
                 });
                 newSfCtx = updateTrade(ctx, superToken, newSfCtx, newEntry, entry, state);
+
+                emit LOG_SET_FLOW(context.msgSender, address(superToken), entry.destSuperToken, 0, 0, 0);
 
                 // update dest super token if it has changed
                 if (args[i].destSuperToken != entry.destSuperToken) {
@@ -425,6 +445,8 @@ library StreamSwapLibrary {
 
                 curStateIdx[1] = pos;
             }
+
+            emit LOG_SET_FLOW(context.msgSender, address(superToken), args[i].destSuperToken, args[i].minOut, args[i].maxOut, args[i].inAmount);
         }
 
         console.log("done with existing ids");
@@ -445,6 +467,8 @@ library StreamSwapLibrary {
             // src super token list
             updateSuperTokenPointers(ctx, address(superToken), entry.prevForSrcSuperToken, entry.nextForSrcSuperToken);
             updateSuperTokenPointers(ctx, entry.destSuperToken, entry.prevForDestSuperToken, entry.nextForDestSuperToken);
+
+            emit LOG_SET_FLOW(context.msgSender, address(superToken), entry.destSuperToken, 0, 0, 0);
 
             uint64 nextStateIdx = entry.nextSenderAccount;
             ctx.streamSwapState[curStateIdx[0]] = ctx.streamSwapState[0];
@@ -534,6 +558,8 @@ library StreamSwapLibrary {
                 console.log("change out rate", oldOutRate, newOutRate);
                 adjustTradeOut(ctx, entry.destSuperToken, entry.sender, oldOutRate, newOutRate);
             }
+
+            emit LOG_SET_FLOW_RATE(entry.sender, entry.srcSuperToken, entry.destSuperToken, newOutRate);
         }
 
         console.log("finished update");

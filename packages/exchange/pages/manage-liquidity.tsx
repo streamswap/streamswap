@@ -7,14 +7,14 @@ import Grid from '@material-ui/core/Grid';
 import Autocomplete, { createFilterOptions } from '@material-ui/lab/Autocomplete';
 import Paper from '@material-ui/core/Paper';
 import Button from '@material-ui/core/Button';
-import { TokenDef } from './api/tokens';
 import RadioGroup from '@material-ui/core/RadioGroup';
 import Radio from '@material-ui/core/Radio';
 import FormControlLabel from '@material-ui/core/FormControlLabel';
+import { Token } from '../queries/swaps';
 
-const placeholderTokens: TokenDef[] = [
-  { symbol: 'USDc', name: 'USDC', decimals: 6, contract: '' },
-  { symbol: 'WETH', name: 'Wrapped Ether', decimals: 18, contract: '' },
+const placeholderTokens: Token[] = [
+  { symbol: 'USDc', name: 'USDC', decimals: 6, id: '' },
+  { symbol: 'WETH', name: 'Wrapped Ether', decimals: 18, id: '' },
 ];
 
 let mode: 'deposit' | 'withdraw' = 'deposit';
@@ -29,7 +29,7 @@ const Save = () => (
         <Grid item sm={3} xs={6}>
           <Autocomplete
             options={placeholderTokens}
-            getOptionLabel={(o: TokenDef) => o.symbol}
+            getOptionLabel={(o: Token) => o.symbol}
             filterOptions={createFilterOptions({ stringify: (o) => `${o.symbol} - ${o.name}` })}
             renderInput={(params) => <TextField {...params} label="TokenA" />}
             id="token-a"
@@ -39,7 +39,7 @@ const Save = () => (
         <Grid item sm={3} xs={6}>
           <Autocomplete
             options={placeholderTokens}
-            getOptionLabel={(o: TokenDef) => o.symbol}
+            getOptionLabel={(o: Token) => o.symbol}
             filterOptions={createFilterOptions({ stringify: (o) => `${o.symbol} - ${o.name}` })}
             renderInput={(params) => <TextField {...params} label="TokenB" />}
             id="token-b"

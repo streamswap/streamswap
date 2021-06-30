@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
@@ -49,14 +51,6 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         uint tokenOutBalance;
     }
 
-    event LOG_SWAP(
-        address indexed caller,
-        address indexed tokenIn,
-        address indexed tokenOut,
-        uint256         tokenAmountIn,
-        uint256         tokenAmountOut
-    );
-
     event LOG_SET_FLOW(
         address indexed caller,
         address indexed tokenIn,
@@ -71,6 +65,14 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         address indexed tokenIn,
         address indexed tokenOut,
         uint256         tokenRateOut
+    );
+
+    event LOG_SWAP(
+        address indexed caller,
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256         tokenAmountIn,
+        uint256         tokenAmountOut
     );
 
     event LOG_BIND_NEW(
@@ -398,6 +400,9 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         _superTokens.push(token);
         _underlyingToSuperToken[ISuperToken(token).getUnderlyingToken()] = token;
         IERC20(ISuperToken(token).getUnderlyingToken()).approve(token, type(uint).max);
+
+        emit LOG_BIND_NEW(token);
+
         rebind(token, balance, denorm);
     }
 
