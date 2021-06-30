@@ -1,13 +1,21 @@
 /* eslint-disable prefer-const */
 
-import { BigDecimal, BigInt } from '@graphprotocol/graph-ts';
+import { Address, BigDecimal, BigInt, ethereum } from '@graphprotocol/graph-ts';
 import { LOG_NEW_POOL } from '../generated/StreamSwap/StreamSwapFactory';
-import { Pool, StreamSwapFactory, Token } from '../generated/schema';
+import {
+  Pool,
+  PooledToken,
+  StreamSwapFactory,
+  Token,
+  Transaction,
+  User,
+} from '../generated/schema';
 import {
   LOG_BIND_NEW,
   LOG_EXIT,
-  LOG_FLOW,
   LOG_JOIN,
+  LOG_SET_FLOW,
+  LOG_SET_FLOW_RATE,
   LOG_SWAP,
 } from '../generated/templates/Pool/StreamSwapPool';
 import { SuperToken } from '../generated/StreamSwap/SuperToken';
@@ -23,6 +31,10 @@ export function handleNewPool(event: LOG_NEW_POOL): void {
 
   let id = event.params.pool.toHex();
   let pool = new Pool(id);
+  pool.createdAtTimestamp = event.block.timestamp;
+  pool.createdAtBlockNumber = event.block.number;
+  pool.txCount = BigInt.fromI32(0);
+  pool.liquidityProviderCount = BigInt.fromI32(0);
   pool.save();
 
   factory.poolCount++;
@@ -45,16 +57,60 @@ export function handleNewToken(event: LOG_BIND_NEW): void {
   }
 
   let poolId = event.address.toHex();
-  let pool = Pool.load(poolId) || new Pool(poolId);
-  if (!pool.tokens.includes(tokenId)) {
-    pool.tokens.push(tokenId);
+
+  let pooledTokenId = tokenId + poolId.slice(2);
+  let pooledToken = PooledToken.load(pooledTokenId);
+  if (!pooledToken) {
+    pooledToken = new PooledToken(pooledTokenId);
+    pooledToken.pool = poolId;
+    pooledToken.token = tokenId;
+    pooledToken.reserve = BigDecimal.fromString('0');
+    pooledToken.volume = BigDecimal.fromString('0');
+    pooledToken.save();
   }
 }
 
-export function handleInstantSwap(event: LOG_SWAP): void {}
+/** Make a transaction (if not already existing) and return the transaction id */
+function makeTxn(event: ethereum.Event): string {
+  let transactionId = event.transaction.hash.toHex();
+  let transaction = Transaction.load(transactionId);
+  if (!transaction) {
+    transaction = new Transaction(transactionId);
+    transaction.blockNumber = event.block.number;
+    transaction.timestamp = event.block.timestamp;
+    transaction.save();
+  }
+  return transactionId;
+}
 
-export function handleContinuousSwap(event: LOG_FLOW): void {}
+/** Make a new user (if not already existing) and return the userId */
+function makeUser(userAddr: Address): string {
+  let userId = userAddr.toHex();
+  let user = User.load(userId);
+  if (!user) {
+    user = new User(userId);
+    user.save();
+  }
+  return userId;
+}
 
-export function handleJoinPool(event: LOG_JOIN): void {}
+export function handleInstantSwap(event: LOG_SWAP): void {
+  let transactionId = makeTxn(event);
+  let userId = makeUser(event.params.caller);
 
-export function handleExitPool(event: LOG_EXIT): void {}
+}
+
+export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
+  makeTxn(event);
+  makeUser(event.params.caller);
+}
+
+export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {}
+
+export function handleJoinPool(event: LOG_JOIN): void {
+  makeUser(event.params.caller);
+}
+
+export function handleExitPool(event: LOG_EXIT): void {
+  makeUser(event.params.caller);
+}

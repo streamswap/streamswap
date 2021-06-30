@@ -49,8 +49,10 @@ templates:
           handler: handleNewToken
         - event: LOG_SWAP(indexed address,indexed address,indexed address,uint256,uint256)
           handler: handleInstantSwap
-        - event: LOG_FLOW(indexed address,indexed address,indexed address,uint256,uint256)
-          handler: handleContinuousSwap
+        - event: LOG_SET_FLOW(indexed address,indexed address,indexed address,uint256,uint256,uint256)
+          handler: handleSetContinuousSwap
+        - event: LOG_SET_FLOW_RATE(indexed address,indexed address,uint256)
+          handler: handleSetContinuousSwapRate
         - event: LOG_JOIN(indexed address,indexed address,uint256)
           handler: handleJoinPool
         - event: LOG_EXIT(indexed address,indexed address,uint256)

@@ -2,10 +2,10 @@
 
 type StreamSwapFactory @entity {
   # factory address
-  id: ID!
+  id: ID! #done
 
   # pool info
-  poolCount: Int!
+  poolCount: Int! #done
 
   # transactions
   txCount: BigInt!
@@ -13,18 +13,18 @@ type StreamSwapFactory @entity {
 
 type Token @entity {
   # token address
-  id: ID!
+  id: ID! #done
 
   # mirrored from the smart contract
-  symbol: String!
-  name: String!
-  decimals: BigInt!
+  symbol: String! #done
+  name: String! #done
+  decimals: BigInt! #done
 
   # Adress of the underlying (non-super) token
-  underlyingToken: Bytes!
+  underlyingToken: Bytes! #done
 
   # used for other stats like marketcap
-  totalSupply: BigInt!
+  totalSupply: BigInt! #done
 
   # transactions across all pairs
   txCount: BigInt!
@@ -38,11 +38,11 @@ type Token @entity {
 
 type PooledToken @entity {
   # pool address + token index
-  id: ID!
+  id: ID! #done
 
   # links to other data
-  pool: Pool!
-  token: Token!
+  pool: Pool! #done
+  token: Token! #done
 
   # qty stored of this token in the pool
   reserve: BigDecimal!
@@ -52,7 +52,7 @@ type PooledToken @entity {
 
 type Pool @entity {
   # pool address
-  id: ID!
+  id: ID! #done
 
   # tokens stored in the pool
   tokens: [PooledToken!]! @derivedFrom(field: "pool")
@@ -60,8 +60,8 @@ type Pool @entity {
   txCount: BigInt!
 
   # creation stats
-  createdAtTimestamp: BigInt!
-  createdAtBlockNumber: BigInt!
+  createdAtTimestamp: BigInt! #done
+  createdAtBlockNumber: BigInt! #done
 
   # Fields used to help derived relationship
   liquidityProviderCount: BigInt! # used to detect new exchanges
@@ -72,15 +72,15 @@ type Pool @entity {
 }
 
 type User @entity {
-  id: ID!
+  id: ID! #done
   instantSwaps: [InstantSwap!]! @derivedForm(field: "user")
   continuousSwaps: [ContinuousSwap!]! @derivedFrom(field: "user")
 }
 
 type Transaction @entity {
   id: ID! # txn hash
-  blockNumber: BigInt!
-  timestamp: BigInt!
+  blockNumber: BigInt! #done
+  timestamp: BigInt! #done
 
   instantSwaps: [InstantSwap!]! @derivedFrom(field: "transaction")
   continuousSwaps: [ContinuousSwap!]! @derivedFrom(field: "transaction")
@@ -111,6 +111,9 @@ type ContinuousSwap @entity {
 
   tokenIn: Token!
   tokenOut: Token!
+
+  minOut: BigDecimal!
+  maxOut: BigDecimal!
 
   # whether this swap is still running, once stopped, it can never be reactivated
   active: Boolean!
