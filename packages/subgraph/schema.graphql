@@ -88,17 +88,18 @@ type Transaction @entity {
 
 type InstantSwap @entity {
   # transaction hash + "-" + index in swaps Transaction array
-  id: ID!
-  pool: Pool!
-  user: User!
-  transaction: Transaction!
-  timestamp: BigInt! # need this to pull recent txns for specific token or pool
+  id: ID! #done
+  pool: Pool! #done
+  user: User! #done
+  transaction: Transaction! #done
+  # need this to pull recent txns for specific token or pool
+  timestamp: BigInt! #done
 
-  tokenIn: Token!
-  tokenOut: Token!
+  tokenIn: Token! #done
+  tokenOut: Token! #done
 
-  amountIn: BigDecimal!
-  amountOut: BigDecimal!
+  amountIn: BigDecimal! #done
+  amountOut: BigDecimal! #done
 }
 
 type ContinuousSwap @entity {

@@ -3,6 +3,7 @@
 import { Address, BigDecimal, BigInt, ethereum } from '@graphprotocol/graph-ts';
 import { LOG_NEW_POOL } from '../generated/StreamSwap/StreamSwapFactory';
 import {
+  InstantSwap,
   Pool,
   PooledToken,
   StreamSwapFactory,
@@ -19,6 +20,7 @@ import {
   LOG_SWAP,
 } from '../generated/templates/Pool/StreamSwapPool';
 import { SuperToken } from '../generated/StreamSwap/SuperToken';
+import { convertTokenToDecimal } from './helpers';
 
 export function handleNewPool(event: LOG_NEW_POOL): void {
   let factoryId = event.address.toHex();
@@ -29,8 +31,8 @@ export function handleNewPool(event: LOG_NEW_POOL): void {
     factory.txCount = BigInt.fromI32(0);
   }
 
-  let id = event.params.pool.toHex();
-  let pool = new Pool(id);
+  let poolId = event.params.pool.toHex();
+  let pool = new Pool(poolId);
   pool.createdAtTimestamp = event.block.timestamp;
   pool.createdAtBlockNumber = event.block.number;
   pool.txCount = BigInt.fromI32(0);
@@ -58,7 +60,7 @@ export function handleNewToken(event: LOG_BIND_NEW): void {
 
   let poolId = event.address.toHex();
 
-  let pooledTokenId = tokenId + poolId.slice(2);
+  let pooledTokenId = `${tokenId}-${poolId.slice(2)}`;
   let pooledToken = PooledToken.load(pooledTokenId);
   if (!pooledToken) {
     pooledToken = new PooledToken(pooledTokenId);
@@ -96,8 +98,23 @@ function makeUser(userAddr: Address): string {
 
 export function handleInstantSwap(event: LOG_SWAP): void {
   let transactionId = makeTxn(event);
-  let userId = makeUser(event.params.caller);
+  makeUser(event.params.caller);
+  let tokenInId = event.params.tokenIn.toHex();
+  let tokenOutId = event.params.tokenOut.toHex();
+  let tokenIn = Token.load(tokenInId);
+  let tokenOut = Token.load(tokenOutId);
 
+  let swapId = `${transactionId}-${event.logIndex}`;
+  let swap = new InstantSwap(swapId);
+  swap.pool = event.address.toHex();
+  swap.user = event.params.caller.toHex();
+  swap.transaction = transactionId;
+  swap.timestamp = event.block.timestamp;
+  swap.tokenIn = tokenInId;
+  swap.tokenOut = tokenOutId;
+  swap.amountIn = convertTokenToDecimal(event.params.tokenAmountIn, tokenIn.decimals);
+  swap.amountOut = convertTokenToDecimal(event.params.tokenAmountOut, tokenOut.decimals);
+  swap.save();
 }
 
 export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
