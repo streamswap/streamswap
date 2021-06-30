@@ -1,8 +1,9 @@
 /* eslint-disable prefer-const */
 
-import { Address, BigDecimal, BigInt, ethereum } from '@graphprotocol/graph-ts';
+import { Address, BigDecimal, BigInt, Bytes, ethereum } from '@graphprotocol/graph-ts';
 import { LOG_NEW_POOL } from '../generated/StreamSwap/StreamSwapFactory';
 import {
+  ContinuousSwap,
   InstantSwap,
   Pool,
   PooledToken,
@@ -60,7 +61,7 @@ export function handleNewToken(event: LOG_BIND_NEW): void {
 
   let poolId = event.address.toHex();
 
-  let pooledTokenId = `${tokenId}-${poolId.slice(2)}`;
+  let pooledTokenId = `${tokenId}-${poolId}`;
   let pooledToken = PooledToken.load(pooledTokenId);
   if (!pooledToken) {
     pooledToken = new PooledToken(pooledTokenId);
@@ -119,10 +120,38 @@ export function handleInstantSwap(event: LOG_SWAP): void {
 
 export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   makeTxn(event);
-  makeUser(event.params.caller);
+  let userId = makeUser(event.params.caller);
+
+  let tokenInId = event.params.tokenIn.toHex();
+  let tokenOutId = event.params.tokenOut.toHex();
+  let tokenIn = Token.load(tokenInId);
+  let tokenOut = Token.load(tokenOutId);
+
+  let poolId = event.address.toHex();
+
+  let swapId = Bytes.fromHexString(
+    `${userId}${poolId.slice(2)}${tokenInId.slice(2)}${tokenOutId.slice(2)}`,
+  ).toBase58();
+  let swap = ContinuousSwap.load(swapId);
+  if (!swap) {
+    swap = new ContinuousSwap(swapId);
+    swap.pool = poolId;
+    swap.user = userId;
+    swap.tokenIn = tokenInId;
+    swap.tokenOut = tokenOutId;
+    swap.active = true;
+  }
+  swap.timestamp = event.block.timestamp;
+  swap.transaction = event.transaction.hash.toHex();
+  swap.minOut = convertTokenToDecimal(event.params.minOut, tokenOut.decimals);
+  swap.maxOut = convertTokenToDecimal(event.params.maxOut, tokenOut.decimals);
+  swap.rateIn = convertTokenToDecimal(event.params.tokenRateIn, tokenIn.decimals);
+  swap.save();
 }
 
-export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {}
+export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
+
+}
 
 export function handleJoinPool(event: LOG_JOIN): void {
   makeUser(event.params.caller);

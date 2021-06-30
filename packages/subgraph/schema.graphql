@@ -103,25 +103,29 @@ type InstantSwap @entity {
 }
 
 type ContinuousSwap @entity {
-  # transaction hash + "-" + index in swaps Transaction array
-  id: ID!
-  pool: Pool!
-  user: User!
-  transaction: Transaction!
-  timestamp: BigInt! # need this to pull recent txns for specific token or pool
+  # base58(userId + poolId + tokenInId + tokenOutId)
+  id: ID! #done
+  pool: Pool! #done
+  user: User! #done
+  # last transaction that set this swap (not output rate update)
+  transaction: Transaction! #done
+  # last transaction that set this swap (not output rate update)
+  timestamp: BigInt! #done
 
-  tokenIn: Token!
-  tokenOut: Token!
+  tokenIn: Token! #done
+  tokenOut: Token! #done
 
-  minOut: BigDecimal!
-  maxOut: BigDecimal!
+  # tokens/s
+  minOut: BigDecimal! #done
+  # tokens/s
+  maxOut: BigDecimal! #done
 
   # whether this swap is still running, once stopped, it can never be reactivated
   active: Boolean!
 
-  # Rate is in wei/s or more accurately `10^(-token.decimals)/s`
-  rateIn: BigDecimal!
-  # this will be zero once it is stopped
+  # Rate is in tokens/s
+  rateIn: BigDecimal! #done
+  # Rate is in tokens/s, this will be zero once it is stopped
   currentRateOut: BigDecimal!
 
   # info to make calculating amount swapped live, store integration over all previous rates and allow for live updates
