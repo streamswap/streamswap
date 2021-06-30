@@ -57,6 +57,26 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         uint256         tokenAmountOut
     );
 
+    event LOG_SET_FLOW(
+        address indexed caller,
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256         minOut,
+        uint256         maxOut,
+        uint256         tokenRateIn
+    );
+
+    event LOG_SET_FLOW_RATE(
+        address indexed receiver,
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256         tokenRateOut
+    );
+
+    event LOG_BIND_NEW(
+        address indexed token
+    );
+
     event LOG_JOIN(
         address indexed caller,
         address indexed tokenIn,

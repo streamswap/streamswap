@@ -2,66 +2,65 @@
 
 type StreamSwapFactory @entity {
   # factory address
-  id: ID!
+  id: ID! #done
 
   # pool info
-  poolCount: Int!
-
-  # transactions
-  txCount: BigInt!
+  poolCount: Int! #done
 }
 
 type Token @entity {
   # token address
-  id: ID!
+  id: ID! #done
 
   # mirrored from the smart contract
-  symbol: String!
-  name: String!
-  decimals: BigInt!
+  symbol: String! #done
+  name: String! #done
+  decimals: BigInt! #done
+
+  # Adress of the underlying (non-super) token
+  underlyingToken: Bytes! #done
 
   # used for other stats like marketcap
-  totalSupply: BigInt!
+  totalSupply: BigInt! #done
 
-  # transactions across all pairs
-  txCount: BigInt!
+  instantSwapCount: BigInt! #done
+  continuousSwapSetCount: BigInt! #done
 
-  # liquidity across all pairs
-  totalLiquidity: BigDecimal!
+  # liquidity across all pools
+  totalLiquidity: BigDecimal! #done
 
   # derived fields
   tokenDayData: [TokenDayData!]! @derivedFrom(field: "token")
 }
 
 type PooledToken @entity {
-  # pool address + token index
-  id: ID!
+  # tokenId + "-" + pool address
+  id: ID! #done
 
   # links to other data
-  pool: Pool!
-  token: Token!
+  pool: Pool! #done
+  token: Token! #done
 
   # qty stored of this token in the pool
-  reserve: BigDecimal!
+  reserve: BigDecimal! #done
   # lifetime volume stats
-  volume: BigDecimal!
+  volume: BigDecimal! #done
 }
 
 type Pool @entity {
   # pool address
-  id: ID!
+  id: ID! #done
 
   # tokens stored in the pool
   tokens: [PooledToken!]! @derivedFrom(field: "pool")
 
-  txCount: BigInt!
+  instantSwapCount: BigInt! #done
+  continuousSwapSetCount: BigInt! #done
 
   # creation stats
-  createdAtTimestamp: BigInt!
-  createdAtBlockNumber: BigInt!
+  createdAtTimestamp: BigInt! #done
+  createdAtBlockNumber: BigInt! #done
 
-  # Fields used to help derived relationship
-  liquidityProviderCount: BigInt! # used to detect new exchanges
   # derived fields
   poolHourData: [PoolHourData!]! @derivedFrom(field: "pool")
   instantSwaps: [InstantSwap!]! @derivedFrom(field: "pool")
@@ -69,15 +68,15 @@ type Pool @entity {
 }
 
 type User @entity {
-  id: ID!
+  id: ID! #done
   instantSwaps: [InstantSwap!]! @derivedForm(field: "user")
   continuousSwaps: [ContinuousSwap!]! @derivedFrom(field: "user")
 }
 
 type Transaction @entity {
   id: ID! # txn hash
-  blockNumber: BigInt!
-  timestamp: BigInt!
+  blockNumber: BigInt! #done
+  timestamp: BigInt! #done
 
   instantSwaps: [InstantSwap!]! @derivedFrom(field: "transaction")
   continuousSwaps: [ContinuousSwap!]! @derivedFrom(field: "transaction")
@@ -85,107 +84,101 @@ type Transaction @entity {
 
 type InstantSwap @entity {
   # transaction hash + "-" + index in swaps Transaction array
-  id: ID!
-  pool: Pool!
-  user: User!
-  transaction: Transaction!
-  timestamp: BigInt! # need this to pull recent txns for specific token or pool
+  id: ID! #done
+  pool: Pool! #done
+  user: User! #done
+  transaction: Transaction! #done
+  # need this to pull recent txns for specific token or pool
+  timestamp: BigInt! #done
 
-  tokenIn: Token!
-  tokenOut: Token!
+  tokenIn: Token! #done
+  tokenOut: Token! #done
 
-  amountIn: BigDecimal!
-  amountOut: BigDecimal!
+  amountIn: BigDecimal! #done
+  amountOut: BigDecimal! #done
 }
 
 type ContinuousSwap @entity {
-  # transaction hash + "-" + index in swaps Transaction array
-  id: ID!
-  pool: Pool!
-  user: User!
-  transaction: Transaction!
-  timestamp: BigInt! # need this to pull recent txns for specific token or pool
+  # base58(userId + poolId + tokenInId + tokenOutId)
+  id: ID! #done
+  pool: Pool! #done
+  user: User! #done
+  # last transaction that set this swap (not output rate update)
+  transaction: Transaction! #done
+  # last transaction that set this swap (not output rate update)
+  timestamp: BigInt! #done
 
-  tokenIn: Token!
-  tokenOut: Token!
+  tokenIn: Token! #done
+  tokenOut: Token! #done
+
+  # tokens/s
+  minOut: BigDecimal! #done
+  # tokens/s
+  maxOut: BigDecimal! #done
 
   # whether this swap is still running, once stopped, it can never be reactivated
-  active: Boolean!
+  active: Boolean! #done
 
-  # Rate is in wei/s or more accurately `10^(-token.decimals)/s`
-  rateIn: BigDecimal!
-  # this will be zero once it is stopped
-  currentRateOut: BigDecimal!
+  # Rate is in tokens/s
+  rateIn: BigDecimal! #done
+  # Rate is in tokens/s, this will be zero once it is stopped
+  currentRateOut: BigDecimal! #done
 
   # info to make calculating amount swapped live, store integration over all previous rates and allow for live updates
   # with the current data
-  totalOutUntilLastSwap: BigDecimal!
-  timestampLastSwap: BigInt!
-}
-
-# Data accumulated and condensed into day stats for all of Uniswap
-type StreamSwapDayData @entity {
-  id: ID! # timestamp rounded to current day by dividing by 86400
-  date: Int!
-  txCount: BigInt!
+  totalOutUntilLastSwap: BigDecimal! #done
+  timestampLastSwap: BigInt! #done
 }
 
 type HourlyPooledToken @entity {
-  id: ID!
-  token: Token!
-  reserve: BigDecimal!
-  hourlyVolume: BigDecimal!
-  # hourly number of transactions just for this pooled token
-  hourlyTxns: BigInt!
+  id: ID! #done
+  token: Token! #done
+  reserve: BigDecimal! #done
+  hourlyVolume: BigDecimal! #done
 }
 
 type PoolHourData @entity {
   id: ID!
-  hourStartUnix: Int! # unix timestamp for start of hour
+  date: Int! # unix timestamp for start of hour
   pool: Pool!
 
-  reserves: [HourlyPooledToken!]!
-
-  # total supply for LP historical returns
-  totalSupply: BigDecimal!
+  tokens: [HourlyPooledToken!]! #done
 
   # volume stats
-  hourlyTxns: BigInt!
+  hourlyInstantSwapCount: BigInt! #done
+  hourlyContinuousSwapSetCount: BigInt! #done
 }
 
 type DailyPooledToken @entity {
-  id: ID!
-  token: Token!
-  reserve: BigDecimal!
-  dailyVolume: BigDecimal!
-  # hourly number of transactions just for this pooled token
-  dailyTxns: BigInt!
+  id: ID! #done
+  token: Token! #done
+  reserve: BigDecimal! #done
+  dailyVolume: BigDecimal! #done
 }
 
 # Data accumulated and condensed into day stats for each exchange
 type PoolDayData @entity {
-  id: ID!
-  date: Int!
-  poolAddress: Bytes!
+  id: ID! #done
+  date: Int! #done
+  pool: Pool! #done
 
-  tokens: [DailyPooledToken!]!
-
-  # total supply for LP historical returns
-  totalSupply: BigDecimal!
+  tokens: [DailyPooledToken!]! #done
 
   # volume stats
-  dailyTxns: BigInt!
+  dailyInstantSwapCount: BigInt! #done
+  dailyContinuousSwapSetCount: BigInt! #done
 }
 
 type TokenDayData @entity {
-  id: ID!
-  date: Int!
-  token: Token!
+  id: ID! #done
+  date: Int! #done
+  token: Token! #done
 
   # volume stats
-  dailyVolumeToken: BigDecimal!
-  dailyTxns: BigInt!
+  dailyVolumeToken: BigDecimal! #done
+  dailyInstantSwapCount: BigInt! #done
+  dailyContinuousSwapSetCount: BigInt! #done
 
   # liquidity stats
-  totalLiquidityToken: BigDecimal!
+  totalLiquidityToken: BigDecimal! #done
 }

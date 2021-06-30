@@ -19,7 +19,10 @@ dataSources:
         - Token
       abis:
         - name: StreamSwapFactory
-          file: node_modules/@streamswap/core/deployments/goerli/StreamSwapFactory.json
+          file: ./node_modules/@streamswap/core/artifacts/contracts/StreamSwapFactory.sol/StreamSwapFactory.json
+        # used in place of ERC20
+        - name: SuperToken
+          file: ./node_modules/@streamswap/core/artifacts/@superfluid-finance/ethereum-contracts/contracts/superfluid/SuperToken.sol/SuperToken.json
       eventHandlers:
         - event: LOG_NEW_POOL(indexed address,indexed address)
           handler: handleNewPool
@@ -40,12 +43,16 @@ templates:
         - Token
       abis:
         - name: StreamSwapPool
-          file: node_modules/@streamswap/core/deployments/goerli/StreamSwapPool.json
-        - name: StreamSwapFactory
-          file: node_modules/@streamswap/core/deployments/goerli/StreamSwapFactory.json
+          file: ./node_modules/@streamswap/core/artifacts/contracts/StreamSwapPool.sol/StreamSwapPool.json
       eventHandlers:
+        - event: LOG_BIND_NEW(indexed address)
+          handler: handleNewToken
         - event: LOG_SWAP(indexed address,indexed address,indexed address,uint256,uint256)
           handler: handleInstantSwap
+        - event: LOG_SET_FLOW(indexed address,indexed address,indexed address,uint256,uint256,uint256)
+          handler: handleSetContinuousSwap
+        - event: LOG_SET_FLOW_RATE(indexed address,indexed address,indexed address,uint256)
+          handler: handleSetContinuousSwapRate
         - event: LOG_JOIN(indexed address,indexed address,uint256)
           handler: handleJoinPool
         - event: LOG_EXIT(indexed address,indexed address,uint256)
