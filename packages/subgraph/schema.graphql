@@ -34,7 +34,7 @@ type Token @entity {
 }
 
 type PooledToken @entity {
-  # pool address + "-" + token index
+  # token index + "-" + pool address
   id: ID! #done
 
   # links to other data
@@ -44,7 +44,7 @@ type PooledToken @entity {
   # qty stored of this token in the pool
   reserve: BigDecimal! #done
   # lifetime volume stats
-  volume: BigDecimal!
+  volume: BigDecimal! #done
 }
 
 type Pool @entity {
