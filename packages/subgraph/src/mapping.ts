@@ -187,8 +187,20 @@ export function handleJoinPool(event: LOG_JOIN): void {
   let addedTokens = convertTokenToDecimal(event.params.tokenAmountIn, tokenIn.decimals);
   pooledToken.reserve = pooledToken.reserve.plus(addedTokens);
   pooledToken.save();
+  tokenIn.totalLiquidity.plus(addedTokens);
+  tokenIn.save();
 }
 
 export function handleExitPool(event: LOG_EXIT): void {
   makeUser(event.params.caller);
+  let tokenId = event.params.tokenOut.toHex();
+  let poolId = event.address.toHex();
+  let pooledTokenId = `${tokenId}-${poolId}`;
+  let pooledToken = PooledToken.load(pooledTokenId);
+  let tokenIn = Token.load(tokenId);
+  let removedTokens = convertTokenToDecimal(event.params.tokenAmountOut, tokenIn.decimals);
+  pooledToken.reserve = pooledToken.reserve.minus(removedTokens);
+  pooledToken.save();
+  tokenIn.totalLiquidity.minus(removedTokens);
+  tokenIn.save();
 }
