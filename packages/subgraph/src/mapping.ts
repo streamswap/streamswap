@@ -21,7 +21,7 @@ import {
   LOG_SWAP,
 } from '../generated/templates/Pool/StreamSwapPool';
 import { SuperToken } from '../generated/StreamSwap/SuperToken';
-import { convertTokenToDecimal } from './helpers';
+import { convertTokenToDecimal, ZERO_BD, ZERO_BI } from './helpers';
 
 export function handleNewPool(event: LOG_NEW_POOL): void {
   let factoryId = event.address.toHex();
@@ -54,7 +54,7 @@ export function handleNewToken(event: LOG_BIND_NEW): void {
     token.decimals = BigInt.fromI32(contract.decimals());
     token.totalSupply = contract.totalSupply();
     token.txCount = BigInt.fromI32(0);
-    token.totalLiquidity = BigDecimal.fromString('0');
+    token.totalLiquidity = ZERO_BD;
     token.underlyingToken = contract.getUnderlyingToken();
     token.save();
   }
@@ -67,8 +67,8 @@ export function handleNewToken(event: LOG_BIND_NEW): void {
     pooledToken = new PooledToken(pooledTokenId);
     pooledToken.pool = poolId;
     pooledToken.token = tokenId;
-    pooledToken.reserve = BigDecimal.fromString('0');
-    pooledToken.volume = BigDecimal.fromString('0');
+    pooledToken.reserve = ZERO_BD;
+    pooledToken.volume = ZERO_BD;
     pooledToken.save();
   }
 }
@@ -150,7 +150,31 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
 }
 
 export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
+  let userId = event.params.receiver.toHex();
+  let poolId = event.address.toHex();
+  let tokenInId = event.params.tokenIn.toHex();
+  let tokenOutId = event.params.tokenOut.toHex();
+  let tokenOut = Token.load(tokenOutId);
+  let swapId = Bytes.fromHexString(
+    `${userId}${poolId.slice(2)}${tokenInId.slice(2)}${tokenOutId.slice(2)}`,
+  ).toBase58();
 
+  let swap = ContinuousSwap.load(swapId);
+  let prevTotal = swap.totalOutUntilLastSwap;
+  let prevTimestamp = swap.timestampLastSwap;
+  let prevRate = swap.currentRateOut;
+  if (event.params.tokenRateOut.equals(ZERO_BI)) {
+    swap.active = false;
+    swap.currentRateOut = ZERO_BD;
+  } else {
+    swap.currentRateOut = convertTokenToDecimal(event.params.tokenRateOut, tokenOut.decimals);
+  }
+
+  let curTimestamp = event.block.timestamp;
+  let dt = curTimestamp.minus(prevTimestamp).toBigDecimal();
+  swap.totalOutUntilLastSwap = prevTotal.plus(prevRate.times(dt));
+  swap.timestampLastSwap = curTimestamp;
+  swap.save();
 }
 
 export function handleJoinPool(event: LOG_JOIN): void {

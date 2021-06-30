@@ -121,17 +121,17 @@ type ContinuousSwap @entity {
   maxOut: BigDecimal! #done
 
   # whether this swap is still running, once stopped, it can never be reactivated
-  active: Boolean!
+  active: Boolean! #done
 
   # Rate is in tokens/s
   rateIn: BigDecimal! #done
   # Rate is in tokens/s, this will be zero once it is stopped
-  currentRateOut: BigDecimal!
+  currentRateOut: BigDecimal! #done
 
   # info to make calculating amount swapped live, store integration over all previous rates and allow for live updates
   # with the current data
-  totalOutUntilLastSwap: BigDecimal!
-  timestampLastSwap: BigInt!
+  totalOutUntilLastSwap: BigDecimal! #done
+  timestampLastSwap: BigInt! #done
 }
 
 # Data accumulated and condensed into day stats for all of Uniswap

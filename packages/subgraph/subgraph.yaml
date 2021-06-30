@@ -51,7 +51,7 @@ templates:
           handler: handleInstantSwap
         - event: LOG_SET_FLOW(indexed address,indexed address,indexed address,uint256,uint256,uint256)
           handler: handleSetContinuousSwap
-        - event: LOG_SET_FLOW_RATE(indexed address,indexed address,uint256)
+        - event: LOG_SET_FLOW_RATE(indexed address,indexed address,indexed address,uint256)
           handler: handleSetContinuousSwapRate
         - event: LOG_JOIN(indexed address,indexed address,uint256)
           handler: handleJoinPool
