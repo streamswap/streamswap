@@ -1,5 +1,5 @@
 {
-  "address": "0x6aafe261617748679a238a4b95ac98aef9b63a65",
+  "address": "0x215ec59f96fb6927b70573f5a4715dc2f7e3ae3e",
   "abi": [
     {
       "inputs": [
@@ -128,6 +128,80 @@
         }
       ],
       "name": "LOG_JOIN",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "tokenIn",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "tokenOut",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "minOut",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "maxOut",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "tokenRateIn",
+          "type": "uint256"
+        }
+      ],
+      "name": "LOG_SET_FLOW",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "receiver",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "tokenIn",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "tokenOut",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "tokenRateOut",
+          "type": "uint256"
+        }
+      ],
+      "name": "LOG_SET_FLOW_RATE",
       "type": "event"
     },
     {

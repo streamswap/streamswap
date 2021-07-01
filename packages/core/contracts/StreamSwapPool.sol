@@ -435,12 +435,14 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         _records[token].balance = balance;
         if (balance > oldBalance) {
             _pullUnderlying(token, msg.sender, StreamSwapLibrary.bsub(balance, oldBalance));
+            emit LOG_JOIN(msg.sender, token, StreamSwapLibrary.bsub(balance, oldBalance));
         } else if (balance < oldBalance) {
             // In this case liquidity is being withdrawn, so charge EXIT_FEE
             uint tokenBalanceWithdrawn = StreamSwapLibrary.bsub(oldBalance, balance);
             uint tokenExitFee = StreamSwapLibrary.bmul(tokenBalanceWithdrawn, EXIT_FEE);
             _pushUnderlying(token, msg.sender, StreamSwapLibrary.bsub(tokenBalanceWithdrawn, tokenExitFee));
             _pushUnderlying(token, _factory, tokenExitFee);
+            emit LOG_EXIT(msg.sender, token, tokenBalanceWithdrawn);
         }
 
         _streamSwapContext.updateFlowRates(token, _records, oldRecord);

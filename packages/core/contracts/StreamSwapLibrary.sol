@@ -322,10 +322,14 @@ library StreamSwapLibrary {
         if (prevArgs.destSuperToken != args.destSuperToken) {
             console.log("doing replace");
             newSfCtx = clearTradeOutWithContext(ctx, newSfCtx, prevArgs.destSuperToken, prevArgs.sender, oldOutRate);
+            emit LOG_SET_FLOW(prevArgs.sender, address(superToken), prevArgs.destSuperToken, 0, 0, 0);
+
             newSfCtx = adjustTradeOutWithContext(ctx, newSfCtx, args.destSuperToken, args.sender, 0, newOutRate);
+            emit LOG_SET_FLOW(args.sender, address(superToken), args.destSuperToken, args.minOut, args.maxOut, args.inAmount);
         }
         else {
             newSfCtx = adjustTradeOutWithContext(ctx, newSfCtx, prevArgs.destSuperToken, prevArgs.sender, oldOutRate, newOutRate);
+            emit LOG_SET_FLOW(args.sender, address(superToken), args.destSuperToken, args.minOut, args.maxOut, args.inAmount);
         }
 
         emit LOG_SET_FLOW_RATE(args.sender, args.srcSuperToken, args.destSuperToken, newOutRate);
@@ -379,8 +383,6 @@ library StreamSwapLibrary {
                     active: entry.active
                 });
                 newSfCtx = updateTrade(ctx, superToken, newSfCtx, newEntry, entry, state);
-
-                emit LOG_SET_FLOW(context.msgSender, address(superToken), entry.destSuperToken, 0, 0, 0);
 
                 // update dest super token if it has changed
                 if (args[i].destSuperToken != entry.destSuperToken) {
@@ -445,8 +447,6 @@ library StreamSwapLibrary {
 
                 curStateIdx[1] = pos;
             }
-
-            emit LOG_SET_FLOW(context.msgSender, address(superToken), args[i].destSuperToken, args[i].minOut, args[i].maxOut, args[i].inAmount);
         }
 
         console.log("done with existing ids");
@@ -467,8 +467,6 @@ library StreamSwapLibrary {
             // src super token list
             updateSuperTokenPointers(ctx, address(superToken), entry.prevForSrcSuperToken, entry.nextForSrcSuperToken);
             updateSuperTokenPointers(ctx, entry.destSuperToken, entry.prevForDestSuperToken, entry.nextForDestSuperToken);
-
-            emit LOG_SET_FLOW(context.msgSender, address(superToken), entry.destSuperToken, 0, 0, 0);
 
             uint64 nextStateIdx = entry.nextSenderAccount;
             ctx.streamSwapState[curStateIdx[0]] = ctx.streamSwapState[0];
