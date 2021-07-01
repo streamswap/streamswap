@@ -100,7 +100,7 @@ type InstantSwap @entity {
 }
 
 type ContinuousSwap @entity {
-  # base58(userId + poolId + tokenInId + tokenOutId)
+  # keccak256(userId + poolId + tokenInId + tokenOutId)
   id: ID! #done
   pool: Pool! #done
   user: User! #done

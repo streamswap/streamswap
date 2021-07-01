@@ -1,6 +1,6 @@
 /* eslint-disable prefer-const */
 
-import { Address, BigDecimal, BigInt, Bytes, ethereum } from '@graphprotocol/graph-ts';
+import { Address, BigDecimal, BigInt, Bytes, ethereum, crypto } from '@graphprotocol/graph-ts';
 import { LOG_NEW_POOL } from '../generated/StreamSwap/StreamSwapFactory';
 import { Pool as PoolTemplate } from '../generated/templates';
 import {
@@ -142,6 +142,20 @@ export function handleInstantSwap(event: LOG_SWAP): void {
   updateTokenDayData(tokenOut, event, 'instant');
 }
 
+/** Expects 4 hex string ids */
+function makeContinuousSwapId(poolId: string, userId: string, tokenInId: string, tokenOutId: string): string {
+  return crypto
+    .keccak256(
+      Bytes.fromHexString(
+        userId
+          .concat(poolId.slice(2))
+          .concat(tokenInId.slice(2))
+          .concat(tokenOutId.slice(2)),
+      ),
+    )
+    .toHex();
+}
+
 export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   makeTxn(event);
   let userId = makeUser(event.params.caller);
@@ -159,9 +173,7 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   let pooledInTokenId = tokenInId.concat('-').concat(poolId);
   let pooledInToken = PooledToken.load(pooledInTokenId);
 
-  let swapId = Bytes.fromHexString(
-    userId.concat(poolId.slice(2)).concat(tokenInId.slice(2)).concat(tokenOutId.slice(2)),
-  ).toBase58();
+  let swapId = makeContinuousSwapId(poolId, userId, tokenInId, tokenOutId);
   let swap = ContinuousSwap.load(swapId);
   if (!swap) {
     swap = new ContinuousSwap(swapId);
@@ -199,31 +211,31 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   pool.save();
 
   updatePoolDayData(event, 'continuous');
-  // updatePoolHourData(event, 'continuous');
-  // updateTokenDayData(tokenIn, event, 'continuous');
+  updatePoolHourData(event, 'continuous');
+  updateTokenDayData(tokenIn, event, 'continuous');
 }
 
 export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
-  // let userId = event.params.receiver.toHex();
-  //
-  // let poolId = event.address.toHex();
-  // let pool = Pool.load(poolId);
-  //
-  // let tokenInId = event.params.tokenIn.toHex();
-  // let tokenOutId = event.params.tokenOut.toHex();
-  // let tokenIn = Token.load(tokenInId)!;
-  // assert(tokenIn != null, 'In token must be defined');
-  // let tokenOut = Token.load(tokenOutId)!;
-  // assert(tokenOut != null, 'Out token must be defined');
-  //
-  // let pooledOutTokenId = `${tokenOutId}-${poolId}`;
-  // let pooledOutToken = PooledToken.load(pooledOutTokenId);
-  //
-  // let swapId = Bytes.fromHexString(
-  //   `${userId}${poolId.slice(2)}${tokenInId.slice(2)}${tokenOutId.slice(2)}`,
-  // ).toBase58();
-  // let swap = ContinuousSwap.load(swapId);
-  //
+  let userId = event.params.receiver.toHex();
+
+  let poolId = event.address.toHex();
+  let pool = Pool.load(poolId);
+
+  let tokenInId = event.params.tokenIn.toHex();
+  let tokenOutId = event.params.tokenOut.toHex();
+  let tokenIn = Token.load(tokenInId)!;
+  assert(tokenIn != null, 'In token must be defined');
+  let tokenOut = Token.load(tokenOutId)!;
+  assert(tokenOut != null, 'Out token must be defined');
+
+  let pooledOutTokenId = tokenOutId.concat('-').concat(poolId);
+  let pooledOutToken = PooledToken.load(pooledOutTokenId);
+  assert(pooledOutToken != null, 'Pooled out token must be defined');
+
+  let swapId = makeContinuousSwapId(poolId, userId, tokenInId, tokenOutId);
+  let swap = ContinuousSwap.load(swapId);
+  assert(swap != null, 'Continuous swap must be defined');
+
   // let prevTotal = swap.totalOutUntilLastSwap;
   // let prevTimestamp = swap.timestampLastSwap;
   // let prevRate = swap.currentRateOut;
@@ -257,35 +269,35 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
 }
 
 export function handleJoinPool(event: LOG_JOIN): void {
-  // makeUser(event.params.caller);
-  // let tokenId = event.params.tokenIn.toHex();
-  // let poolId = event.address.toHex();
-  // let pooledTokenId = `${tokenId}-${poolId}`;
-  // let pooledToken = PooledToken.load(pooledTokenId);
-  // let tokenIn = Token.load(tokenId)!;
-  // let addedTokens = convertTokenToDecimal(event.params.tokenAmountIn, tokenIn.decimals);
-  // pooledToken.reserve = pooledToken.reserve.plus(addedTokens);
-  // pooledToken.save();
-  // tokenIn.totalLiquidity.plus(addedTokens);
-  // tokenIn.save();
-  // updatePoolDayData(event, null);
-  // updatePoolHourData(event, null);
-  // updateTokenDayData(tokenIn, event, null);
+  makeUser(event.params.caller);
+  let tokenId = event.params.tokenIn.toHex();
+  let poolId = event.address.toHex();
+  let pooledTokenId = tokenId.concat('-').concat(poolId);
+  let pooledToken = PooledToken.load(pooledTokenId);
+  let tokenIn = Token.load(tokenId)!;
+  let addedTokens = convertTokenToDecimal(event.params.tokenAmountIn, tokenIn.decimals);
+  pooledToken.reserve = pooledToken.reserve.plus(addedTokens);
+  pooledToken.save();
+  tokenIn.totalLiquidity.plus(addedTokens);
+  tokenIn.save();
+  updatePoolDayData(event, null);
+  updatePoolHourData(event, null);
+  updateTokenDayData(tokenIn, event, null);
 }
 
 export function handleExitPool(event: LOG_EXIT): void {
-  // makeUser(event.params.caller);
-  // let tokenId = event.params.tokenOut.toHex();
-  // let poolId = event.address.toHex();
-  // let pooledTokenId = `${tokenId}-${poolId}`;
-  // let pooledToken = PooledToken.load(pooledTokenId);
-  // let tokenOut = Token.load(tokenId)!;
-  // let removedTokens = convertTokenToDecimal(event.params.tokenAmountOut, tokenOut.decimals);
-  // pooledToken.reserve = pooledToken.reserve.minus(removedTokens);
-  // pooledToken.save();
-  // tokenOut.totalLiquidity.minus(removedTokens);
-  // tokenOut.save();
-  // updatePoolDayData(event, null);
-  // updatePoolHourData(event, null);
-  // updateTokenDayData(tokenOut, event, null);
+  makeUser(event.params.caller);
+  let tokenId = event.params.tokenOut.toHex();
+  let poolId = event.address.toHex();
+  let pooledTokenId = tokenId.concat('-').concat(poolId);
+  let pooledToken = PooledToken.load(pooledTokenId);
+  let tokenOut = Token.load(tokenId)!;
+  let removedTokens = convertTokenToDecimal(event.params.tokenAmountOut, tokenOut.decimals);
+  pooledToken.reserve = pooledToken.reserve.minus(removedTokens);
+  pooledToken.save();
+  tokenOut.totalLiquidity.minus(removedTokens);
+  tokenOut.save();
+  updatePoolDayData(event, null);
+  updatePoolHourData(event, null);
+  updateTokenDayData(tokenOut, event, null);
 }
