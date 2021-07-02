@@ -1,6 +1,6 @@
 /* eslint-disable prefer-const */
 
-import { Address, BigDecimal, BigInt, Bytes, ethereum, crypto } from '@graphprotocol/graph-ts';
+import { Address, BigDecimal, BigInt, Bytes, ethereum, crypto, log } from '@graphprotocol/graph-ts';
 import { LOG_NEW_POOL } from '../generated/StreamSwap/StreamSwapFactory';
 import { Pool as PoolTemplate } from '../generated/templates';
 import {
@@ -162,6 +162,7 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
 
   let tokenInId = event.params.tokenIn.toHex();
   let tokenOutId = event.params.tokenOut.toHex();
+  log.info("handleSetContinuousSwap TokenIn: {}, TokenOut: {}", [tokenInId, tokenOutId]);
   let tokenIn = Token.load(tokenInId)!;
   assert(tokenIn != null, 'In token must be defined');
   let tokenOut = Token.load(tokenOutId)!;
@@ -236,36 +237,36 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
   let swap = ContinuousSwap.load(swapId);
   assert(swap != null, 'Continuous swap must be defined');
 
-  // let prevTotal = swap.totalOutUntilLastSwap;
-  // let prevTimestamp = swap.timestampLastSwap;
-  // let prevRate = swap.currentRateOut;
-  // if (event.params.tokenRateOut.equals(ZERO_BI)) {
-  //   swap.active = false;
-  //   swap.currentRateOut = ZERO_BD;
-  // } else {
-  //   swap.currentRateOut = convertTokenToDecimal(event.params.tokenRateOut, tokenOut.decimals);
-  // }
-  //
-  // let curTimestamp = event.block.timestamp;
-  // let dt = curTimestamp.minus(prevTimestamp);
-  // let bd_dt = new BigDecimal(dt);
-  // let tradedSincePrevLastSwap = prevRate.times(bd_dt);
-  // swap.totalOutUntilLastSwap = prevTotal.plus(tradedSincePrevLastSwap);
-  // pooledOutToken.volume = pooledOutToken.volume.plus(tradedSincePrevLastSwap);
-  // swap.timestampLastSwap = curTimestamp;
-  // swap.save();
-  // pooledOutToken.save();
-  //
-  // tokenIn.continuousSwapSetCount = tokenIn.continuousSwapSetCount.plus(ONE_BI);
-  // tokenOut.continuousSwapSetCount = tokenOut.continuousSwapSetCount.plus(ONE_BI);
-  // pool.continuousSwapSetCount = pool.continuousSwapSetCount.plus(ONE_BI);
-  // tokenIn.save();
-  // tokenOut.save();
-  // pool.save();
-  //
-  // updatePoolDayData(event, null);
-  // updatePoolHourData(event, null);
-  // updateTokenDayData(tokenOut, event, null);
+  let prevTotal = swap.totalOutUntilLastSwap;
+  let prevTimestamp = swap.timestampLastSwap;
+  let prevRate = swap.currentRateOut;
+  if (event.params.tokenRateOut.equals(ZERO_BI)) {
+    swap.active = false;
+    swap.currentRateOut = ZERO_BD;
+  } else {
+    swap.currentRateOut = convertTokenToDecimal(event.params.tokenRateOut, tokenOut.decimals);
+  }
+
+  let curTimestamp = event.block.timestamp;
+  let dt = curTimestamp.minus(prevTimestamp);
+  let bd_dt = new BigDecimal(dt);
+  let tradedSincePrevLastSwap = prevRate.times(bd_dt);
+  swap.totalOutUntilLastSwap = prevTotal.plus(tradedSincePrevLastSwap);
+  pooledOutToken.volume = pooledOutToken.volume.plus(tradedSincePrevLastSwap);
+  swap.timestampLastSwap = curTimestamp;
+  swap.save();
+  pooledOutToken.save();
+
+  tokenIn.continuousSwapSetCount = tokenIn.continuousSwapSetCount.plus(ONE_BI);
+  tokenOut.continuousSwapSetCount = tokenOut.continuousSwapSetCount.plus(ONE_BI);
+  pool.continuousSwapSetCount = pool.continuousSwapSetCount.plus(ONE_BI);
+  tokenIn.save();
+  tokenOut.save();
+  pool.save();
+
+  updatePoolDayData(event, null);
+  updatePoolHourData(event, null);
+  updateTokenDayData(tokenOut, event, null);
 }
 
 export function handleJoinPool(event: LOG_JOIN): void {

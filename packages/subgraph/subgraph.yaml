@@ -8,9 +8,9 @@ dataSources:
     name: StreamSwap
     network: goerli
     source:
-      address: '0xf6ABEaE57E461C2B7051BeA38FA5c0DE33Ea9367'
+      address: '0x1a7d9Fba3DcCd5dDee83CEafe26D208e4880de6F'
       abi: StreamSwapFactory
-      startBlock: 5053286
+      startBlock: 5066868
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
