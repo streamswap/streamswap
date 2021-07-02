@@ -37,9 +37,9 @@ const Exchange = () => {
   const web3react = useWeb3React();
 
   const tmpTokens: Token[] = [
-    { symbol: 'fUSDC', name: 'Fake USD Coin', decimals: 18, id: '0x7b510c4124ecca5ac087a19cb94649df15f46adc' },
-    { symbol: 'fUNI', name: 'Fake Uniswap Token', decimals: 18, id: '0x15caea1cf600ccb34d0c6eae8bd940d33eae1b6a' },
-    { symbol: 'fWBTC', name: 'Fake Wrapped Bitcoin', decimals: 18, id: '0x5cdc1d15899034f467662b1b4c4913b7adf69067' },
+    { symbol: 'fUSDC', name: 'Fake USD Coin', decimals: 18, id: '0xF2d68898557cCb2Cf4C10c3Ef2B034b2a69DAD00' },
+    { symbol: 'fUNI', name: 'Fake Uniswap Token', decimals: 18, id: '0x6df45e3570e3f7186140f8911f60801c1cba1a18' },
+    { symbol: 'fWBTC', name: 'Fake Wrapped Bitcoin', decimals: 18, id: '0x1139c2a030b1f3c5c1e250016f1fa363a8cff04e' },
   ];
 
   const [inToken, setInToken] = useState<Token|null>(null);
@@ -59,7 +59,7 @@ const Exchange = () => {
     address: web3react.account, tokenIn: inToken?.id
   }});
 
-  const poolAddress = '0x6aafe261617748679a238a4b95ac98aef9b63a65';
+  const poolAddress = '0xd718a9849922404118bcfd113588adbe2352a6a1';
   const allTokens = tmpTokens;
 
   let swapAlert: string|null = null;

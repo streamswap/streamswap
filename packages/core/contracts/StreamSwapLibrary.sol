@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.7.6;
 pragma abicoder v2;
 
@@ -322,10 +322,14 @@ library StreamSwapLibrary {
         if (prevArgs.destSuperToken != args.destSuperToken) {
             console.log("doing replace");
             newSfCtx = clearTradeOutWithContext(ctx, newSfCtx, prevArgs.destSuperToken, prevArgs.sender, oldOutRate);
-            emit LOG_SET_FLOW(prevArgs.sender, address(superToken), prevArgs.destSuperToken, 0, 0, 0);
+            if(prevArgs.sender != address(0)) {
+                emit LOG_SET_FLOW(prevArgs.sender, address(superToken), prevArgs.destSuperToken, 0, 0, 0);
+            }
 
             newSfCtx = adjustTradeOutWithContext(ctx, newSfCtx, args.destSuperToken, args.sender, 0, newOutRate);
-            emit LOG_SET_FLOW(args.sender, address(superToken), args.destSuperToken, args.minOut, args.maxOut, args.inAmount);
+            if(args.sender != address(0)) {
+                emit LOG_SET_FLOW(args.sender, address(superToken), args.destSuperToken, args.minOut, args.maxOut, args.inAmount);
+            }
         }
         else {
             newSfCtx = adjustTradeOutWithContext(ctx, newSfCtx, prevArgs.destSuperToken, prevArgs.sender, oldOutRate, newOutRate);
