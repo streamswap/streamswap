@@ -204,22 +204,22 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   tokenOut.save();
   pool.save();
 
+  if(event.params.tokenRateIn.equals(ZERO_BI)) {
+    store.remove('ContinuousSwap', swap.id);
+  }
+  else {
+    swap.timestamp = event.block.timestamp;
+    swap.transaction = event.transaction.hash.toHex();
+    swap.minOut = convertTokenToDecimal(event.params.minOut, tokenOut.decimals);
+    swap.maxOut = convertTokenToDecimal(event.params.maxOut, tokenOut.decimals);
+    swap.rateIn = convertTokenToDecimal(event.params.tokenRateIn, tokenIn.decimals);
+    swap.currentRateOut = ZERO_BD;
+    swap.save();
+  }
+
   updatePoolDayData(event, 'continuous');
   updatePoolHourData(event, 'continuous');
   updateTokenDayData(tokenIn, event, 'continuous');
-
-  if(event.params.tokenRateIn.equals(ZERO_BI)) {
-    store.remove('ContinuousSwap', swap.id);
-    return;
-  }
-
-  swap.timestamp = event.block.timestamp;
-  swap.transaction = event.transaction.hash.toHex();
-  swap.minOut = convertTokenToDecimal(event.params.minOut, tokenOut.decimals);
-  swap.maxOut = convertTokenToDecimal(event.params.maxOut, tokenOut.decimals);
-  swap.rateIn = convertTokenToDecimal(event.params.tokenRateIn, tokenIn.decimals);
-  swap.currentRateOut = ZERO_BD;
-  swap.save();
 }
 
 export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
