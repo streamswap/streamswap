@@ -1,6 +1,6 @@
 /* eslint-disable prefer-const */
 
-import { Address, BigDecimal, BigInt, Bytes, ethereum, crypto, log } from '@graphprotocol/graph-ts';
+import { Address, BigDecimal, BigInt, Bytes, ethereum, crypto, log, store } from '@graphprotocol/graph-ts';
 import { LOG_NEW_POOL } from '../generated/StreamSwap/StreamSwapFactory';
 import { Pool as PoolTemplate } from '../generated/templates';
 import {
@@ -182,7 +182,6 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
     swap.user = userId;
     swap.tokenIn = tokenInId;
     swap.tokenOut = tokenOutId;
-    swap.active = true;
     swap.timestamp = event.block.timestamp;
     swap.rateIn = ZERO_BD;
     swap.currentRateOut = ZERO_BD;
@@ -197,19 +196,24 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   pooledInToken.volume = pooledInToken.volume.plus(amountInSinceLastSet);
   pooledInToken.save();
 
-  swap.timestamp = event.block.timestamp;
-  swap.transaction = event.transaction.hash.toHex();
-  swap.minOut = convertTokenToDecimal(event.params.minOut, tokenOut.decimals);
-  swap.maxOut = convertTokenToDecimal(event.params.maxOut, tokenOut.decimals);
-  swap.rateIn = convertTokenToDecimal(event.params.tokenRateIn, tokenIn.decimals);
-  swap.save();
-
   tokenIn.instantSwapCount = tokenIn.instantSwapCount.plus(ONE_BI);
   tokenOut.instantSwapCount = tokenOut.instantSwapCount.plus(ONE_BI);
   pool.instantSwapCount = pool.instantSwapCount.plus(ONE_BI);
   tokenIn.save();
   tokenOut.save();
   pool.save();
+
+  if(event.params.tokenRateIn.equals(ZERO_BI)) {
+    store.remove('ContinuousSwap', swap.id);
+  }
+  else {
+    swap.timestamp = event.block.timestamp;
+    swap.transaction = event.transaction.hash.toHex();
+    swap.minOut = convertTokenToDecimal(event.params.minOut, tokenOut.decimals);
+    swap.maxOut = convertTokenToDecimal(event.params.maxOut, tokenOut.decimals);
+    swap.rateIn = convertTokenToDecimal(event.params.tokenRateIn, tokenIn.decimals);
+    swap.save();
+  }
 
   updatePoolDayData(event, 'continuous');
   updatePoolHourData(event, 'continuous');
@@ -224,6 +228,12 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
 
   let tokenInId = event.params.tokenIn.toHex();
   let tokenOutId = event.params.tokenOut.toHex();
+
+  if(tokenInId == '0x0000000000000000000000000000000000000000' || tokenOutId == '0x0000000000000000000000000000000000000000') {
+    // bug emit in old contract
+    return;
+  }
+
   let tokenIn = Token.load(tokenInId)!;
   assert(tokenIn != null, 'In token must be defined');
   let tokenOut = Token.load(tokenOutId)!;
@@ -240,12 +250,7 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
   let prevTotal = swap.totalOutUntilLastSwap;
   let prevTimestamp = swap.timestampLastSwap;
   let prevRate = swap.currentRateOut;
-  if (event.params.tokenRateOut.equals(ZERO_BI)) {
-    swap.active = false;
-    swap.currentRateOut = ZERO_BD;
-  } else {
-    swap.currentRateOut = convertTokenToDecimal(event.params.tokenRateOut, tokenOut.decimals);
-  }
+  swap.currentRateOut = convertTokenToDecimal(event.params.tokenRateOut, tokenOut.decimals);
 
   let curTimestamp = event.block.timestamp;
   let dt = curTimestamp.minus(prevTimestamp);
