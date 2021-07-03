@@ -8,8 +8,9 @@ dataSources:
     name: StreamSwap
     network: goerli
     source:
-      address: '0x0ddb2adfecd80b76d801a8e80f393c70908bacf4'
+      address: '0x1a7d9Fba3DcCd5dDee83CEafe26D208e4880de6F'
       abi: StreamSwapFactory
+      startBlock: 5066868
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
@@ -20,7 +21,6 @@ dataSources:
       abis:
         - name: StreamSwapFactory
           file: ./node_modules/@streamswap/core/artifacts/contracts/StreamSwapFactory.sol/StreamSwapFactory.json
-        # used in place of ERC20
         - name: SuperToken
           file: ./node_modules/@streamswap/core/artifacts/@superfluid-finance/ethereum-contracts/contracts/superfluid/SuperToken.sol/SuperToken.json
       eventHandlers:
@@ -42,6 +42,8 @@ templates:
         - Pool
         - Token
       abis:
+        - name: SuperToken
+          file: ./node_modules/@streamswap/core/artifacts/@superfluid-finance/ethereum-contracts/contracts/superfluid/SuperToken.sol/SuperToken.json
         - name: StreamSwapPool
           file: ./node_modules/@streamswap/core/artifacts/contracts/StreamSwapPool.sol/StreamSwapPool.json
       eventHandlers:
