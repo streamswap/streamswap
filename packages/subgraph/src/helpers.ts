@@ -1,5 +1,5 @@
 /* eslint-disable prefer-const */
-import { BigInt, BigDecimal } from '@graphprotocol/graph-ts';
+import { BigInt, BigDecimal, log } from '@graphprotocol/graph-ts';
 
 export const ADDRESS_ZERO = '0x0000000000000000000000000000000000000000';
 
@@ -43,4 +43,11 @@ export function equalToZero(value: BigDecimal): boolean {
 
 export function isNullEthValue(value: string): boolean {
   return value == '0x0000000000000000000000000000000000000000000000000000000000000001';
+}
+
+export function assert(statement: boolean, description: string): void {
+  if (!statement) {
+    log.critical("Assert failure: {}", [description])
+    throw new Error(description);
+  }
 }

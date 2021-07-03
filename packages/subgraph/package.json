@@ -22,7 +22,8 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph codegen && graph build",
-    "clean": "rm -rf generated build"
+    "clean": "rm -rf generated build",
+    "deploy": "graph deploy --node https://api.thegraph.com/deploy/ --ipfs https://api.thegraph.com/ipfs/ streamswap/streamswap"
   },
   "devDependencies": {
     "@graphprotocol/graph-cli": "^0.20.1",
