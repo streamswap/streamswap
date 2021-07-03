@@ -213,7 +213,6 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
     swap.minOut = convertTokenToDecimal(event.params.minOut, tokenOut.decimals);
     swap.maxOut = convertTokenToDecimal(event.params.maxOut, tokenOut.decimals);
     swap.rateIn = convertTokenToDecimal(event.params.tokenRateIn, tokenIn.decimals);
-    swap.currentRateOut = ZERO_BD;
     swap.save();
   }
 
