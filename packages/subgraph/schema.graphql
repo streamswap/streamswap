@@ -117,9 +117,6 @@ type ContinuousSwap @entity {
   # tokens/s
   maxOut: BigDecimal!
 
-  # whether this swap is still running, once stopped, it can never be reactivated
-  active: Boolean!
-
   # Rate is in tokens/s
   rateIn: BigDecimal!
   # Rate is in tokens/s, this will be zero once it is stopped

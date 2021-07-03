@@ -182,7 +182,6 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
     swap.user = userId;
     swap.tokenIn = tokenInId;
     swap.tokenOut = tokenOutId;
-    swap.active = true;
     swap.timestamp = event.block.timestamp;
     swap.rateIn = ZERO_BD;
     swap.currentRateOut = ZERO_BD;
@@ -251,12 +250,7 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
   let prevTotal = swap.totalOutUntilLastSwap;
   let prevTimestamp = swap.timestampLastSwap;
   let prevRate = swap.currentRateOut;
-  if (event.params.tokenRateOut.equals(ZERO_BI)) {
-    swap.active = false;
-    swap.currentRateOut = ZERO_BD;
-  } else {
-    swap.currentRateOut = convertTokenToDecimal(event.params.tokenRateOut, tokenOut.decimals);
-  }
+  swap.currentRateOut = convertTokenToDecimal(event.params.tokenRateOut, tokenOut.decimals);
 
   let curTimestamp = event.block.timestamp;
   let dt = curTimestamp.minus(prevTimestamp);
