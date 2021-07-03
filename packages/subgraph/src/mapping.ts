@@ -208,7 +208,7 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   updatePoolHourData(event, 'continuous');
   updateTokenDayData(tokenIn, event, 'continuous');
 
-  if(event.params.tokenRateIn.equals(BigInt.fromI32(0))) {
+  if(event.params.tokenRateIn.equals(ZERO_BI)) {
     store.remove('ContinuousSwap', swap.id);
     return;
   }
@@ -218,7 +218,7 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   swap.minOut = convertTokenToDecimal(event.params.minOut, tokenOut.decimals);
   swap.maxOut = convertTokenToDecimal(event.params.maxOut, tokenOut.decimals);
   swap.rateIn = convertTokenToDecimal(event.params.tokenRateIn, tokenIn.decimals);
-  swap.currentRateOut = BigInt.fromI32(0).toBigDecimal();
+  swap.currentRateOut = ZERO_BD;
   swap.save();
 }
 
