@@ -53,7 +53,7 @@ const Home = () => {
       <T variant="h3" style={{margin: '40px'}}>Open Swaps</T>
 
       <Grid container spacing={4} justify="center">
-        {continuousSwaps?.map(swap => <ContinuousSwapCard continuousSwap={swap} onCancel={cancelContinuousSwap} />)}
+        {continuousSwaps?.map(swap => <ContinuousSwapCard key={swap.tokenIn.id + swap.tokenOut.id} continuousSwap={swap} onCancel={cancelContinuousSwap} />)}
       </Grid>
     </MainLayout>
   );
