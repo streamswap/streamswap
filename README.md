@@ -1,4 +1,4 @@
-# Streamtrade
+# Streamswap
 
 ## Building
 ```bash
