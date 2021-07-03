@@ -34,11 +34,8 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 Make sure you have bootstrapped learna in the root. Then run:
 
 ```bash
-npm install
-npx lerna bootstrap
-npx lerna run build
 npm run build
 npm run export
 ```
 
-Static files are exported to `dist/`, ready to be uploaded to surge or any other web server.
+Static files are exported to `out/`, ready to be uploaded to surge or any other web server.
