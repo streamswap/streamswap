@@ -10,8 +10,6 @@ import { useWeb3React } from '@web3-react/core';
 
 const MainLayout = (args: { children: JSX.Element | JSX.Element[]; title?: string }) => {
   const router = useRouter();
- 
-  const { account } = useWeb3React();
 
   return (
     <div className={styles.container}>

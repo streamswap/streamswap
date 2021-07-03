@@ -10,7 +10,7 @@ import Button from '@material-ui/core/Button';
 import RadioGroup from '@material-ui/core/RadioGroup';
 import Radio from '@material-ui/core/Radio';
 import FormControlLabel from '@material-ui/core/FormControlLabel';
-import { Token } from '../queries/swaps';
+import { Token } from '../queries/streamswap';
 
 const placeholderTokens: Token[] = [
   { symbol: 'USDc', name: 'USDC', decimals: 6, id: '' },

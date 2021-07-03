@@ -12,38 +12,31 @@ import Button from '@material-ui/core/Button';
 import Switch from '@material-ui/core/Switch';
 import FormControlLabel from '@material-ui/core/FormControlLabel';
 
-import SuperfluidSDK from '@superfluid-finance/js-sdk';
-
 import { useQuery } from '@apollo/client';
 
-import React, { useState } from 'react';
+import React, { Component, ReactElement, useEffect, useState } from 'react';
 import { Alert } from '@material-ui/lab';
 
 import { TimePeriod } from '../utils/time';
 
 import Wei from '@synthetixio/wei';
 import { useWeb3React } from '@web3-react/core';
-import { SWAPS_FROM_ADDRESS_FROM_TOKEN, ALL_TOKENS, ContinuousSwap, Token, CLIENT } from '../queries/swaps';
+import { SWAPS_FROM_ADDRESS, ALL_TOKENS, ALL_POOLS, ContinuousSwap, Token, CLIENT, Pool } from '../queries/streamswap';
 
-import encodeStreamSwapData, { StreamSwapArgs } from '../utils/encodeStreamSwapData';
 import { injected } from '../utils/web3-connectors';
-import { ethers } from 'ethers';
+import { StreamSwapArgs } from '../utils/encodeStreamSwapData';
+import constructFlow from '../utils/flow-constructor';
+import { useRouter } from 'next/router';
+import ContinuousSwapCard from '../components/ContinuousSwapCard';
 
-import sfJson from '@streamswap/core/artifacts/@superfluid-finance/ethereum-contracts/contracts/superfluid/Superfluid.sol/Superfluid.json';
-import cfaJson from '@streamswap/core/artifacts/@superfluid-finance/ethereum-contracts/contracts/agreements/ConstantFlowAgreementV1.sol/ConstantFlowAgreementV1.json'
+const Swap = () => {
 
-const Exchange = () => {
+  const router = useRouter();
 
   const web3react = useWeb3React();
 
-  const tmpTokens: Token[] = [
-    { symbol: 'fUSDC', name: 'Fake USD Coin', decimals: 18, id: '0xF2d68898557cCb2Cf4C10c3Ef2B034b2a69DAD00' },
-    { symbol: 'fUNI', name: 'Fake Uniswap Token', decimals: 18, id: '0x6df45e3570e3f7186140f8911f60801c1cba1a18' },
-    { symbol: 'fWBTC', name: 'Fake Wrapped Bitcoin', decimals: 18, id: '0x1139c2a030b1f3c5c1e250016f1fa363a8cff04e' },
-  ];
-
-  const [inToken, setInToken] = useState<Token|null>(null);
-  const [outToken, setOutToken] = useState<Token|null>(null);
+  const [inToken, setInToken] = useState<Token | null>(null);
+  const [outToken, setOutToken] = useState<Token | null>(null);
 
   const [inAmount, setInAmount] = useState<string>('');
   const [inAmountPeriod, setInAmountPeriod] = useState<keyof typeof TimePeriod>('week');
@@ -55,22 +48,46 @@ const Exchange = () => {
 
   const tokensInfo = useQuery<{ tokens: Token[] }>(ALL_TOKENS, { client: CLIENT });
 
-  const existingSwapInfo = useQuery<{ continuousSwaps: ContinuousSwap[] }>(SWAPS_FROM_ADDRESS_FROM_TOKEN, { client: CLIENT, skip: !web3react.active || !inToken, variables: {
-    address: web3react.account, tokenIn: inToken?.id
-  }});
+  //const accountInfo = useQuery<{ accounts: Account }>(ACCOUNT_BALANCES_AND_RATES, { client: SUPERFLUID_CLIENT, skip: !web3react.active, variables: { account: web3react.account } });
 
-  const poolAddress = '0xd718a9849922404118bcfd113588adbe2352a6a1';
-  const allTokens = tmpTokens;
+  const allTokens = tokensInfo.data ? tokensInfo.data.tokens : null;
 
-  let swapAlert: string|null = null;
+  const poolsInfo = useQuery<{ pools: Pool[] }>(ALL_POOLS, { client: CLIENT });
+
+  const existingSwapInfo = useQuery<{ user: { continuousSwaps: ContinuousSwap[] } }>(SWAPS_FROM_ADDRESS, {
+    client: CLIENT, skip: !web3react.active, variables: {
+      address: web3react.account?.toLowerCase()
+    }
+  });
+
+  useEffect(() => {
+    if(router.query.inToken) {
+      setInToken(allTokens!.find(t => t.id == router.query.inToken) || null);
+    }
+    if(router.query.outToken) {
+      setOutToken(allTokens!.find(t => t.id == router.query.outToken) || null);
+    }
+  }, [tokensInfo.data]);
+
+  const poolAddress = poolsInfo.data ? poolsInfo.data.pools[0].id : null;
+
+  const inTokenBalance = 0;
+  const outTokenBalance = 0;
+
+  let swapAlert: ReactElement | null = null;
   let swapAction: { text: string, action?: () => void };
 
-  const matchingPrevSwap: ContinuousSwap|null = inToken && outToken && existingSwapInfo.data ? 
-    existingSwapInfo.data?.continuousSwaps.find(cs => cs.tokenIn.id == inToken!.id && cs.tokenOut.id == outToken!.id) || null : 
-    null;
+  const matchingPrevSwaps: ContinuousSwap[] = inToken && outToken && existingSwapInfo.data ?
+    existingSwapInfo.data?.user.continuousSwaps.filter(cs => cs.tokenIn.id == inToken!.id) || [] :
+    [];
 
-  if(matchingPrevSwap) {
-    swapAlert = `There is an existing continuous swap for this pair of ${matchingPrevSwap.rateIn}. This will be updated to the new amount if you continue.`
+  const matchingOut = matchingPrevSwaps.find(cs => cs.tokenOut.id == outToken!.id);
+
+  if (matchingOut) {
+    swapAlert = <div>
+      <Alert severity="info" style={{marginTop: '20px'}}>There is an existing continuous swap for this pair. This will be updated with new settings if you continue.</Alert>
+      <ContinuousSwapCard continuousSwap={matchingOut} showActions={false}></ContinuousSwapCard>
+    </div>
   }
 
   async function connectWallet() {
@@ -78,20 +95,13 @@ const Exchange = () => {
   }
 
   async function executeSwap() {
-    const sf = new SuperfluidSDK.Framework({
-      ethers: web3react.library
-    });
-
-    await sf.initialize();
-
-    const args: StreamSwapArgs[] = existingSwapInfo.data!.continuousSwaps.map((d) => {
-
-      if (d == matchingPrevSwap) {
+    const args: StreamSwapArgs[] = matchingPrevSwaps.map((d) => {
+      if (d.tokenOut.id == outToken?.id) {
         return {
           destSuperToken: outToken!.id,
-          inAmount: new Wei(inAmount).div(inAmountPeriod.valueOf()),
-          minOut: advancedEnabled ? new Wei(minOut) : new Wei(0),
-          maxOut: advancedEnabled ? new Wei(maxOut) : new Wei(0)
+          inAmount: new Wei(inAmount).div(TimePeriod[inAmountPeriod]),
+          minOut: advancedEnabled ? new Wei(minOut || 0).div(TimePeriod[inAmountPeriod]) : new Wei(0),
+          maxOut: advancedEnabled ? new Wei(maxOut || 0).div(TimePeriod[inAmountPeriod]) : new Wei(0)
         }
       }
 
@@ -103,65 +113,21 @@ const Exchange = () => {
       }
     });
 
-    if (!matchingPrevSwap) {
+    if (!matchingOut) {
       args.push({
         destSuperToken: outToken!.id,
         inAmount: new Wei(inAmount).div(TimePeriod[inAmountPeriod]),
-        minOut: advancedEnabled ? new Wei(minOut || 0) : new Wei(0),
-        maxOut: advancedEnabled ? new Wei(maxOut || 0) : new Wei(0)
-      })
+        minOut: advancedEnabled ? new Wei(minOut || 0).div(TimePeriod[inAmountPeriod]) : new Wei(0),
+        maxOut: advancedEnabled ? new Wei(maxOut || 0).div(TimePeriod[inAmountPeriod]) : new Wei(0)
+      });
     }
 
-    let sum = new Wei(0);
-    for(const arg of args) {
-      sum = sum.add(arg.inAmount);
-    }
-
-    console.log({
-      flowRate: sum.toString(0, true),
-      sender: web3react.account,
-      receiver: poolAddress,
-      superToken: inToken!.id,
-      userData: encodeStreamSwapData(args),
-    });
-
-    console.log(web3react.library.provider);
-    const sfc = new ethers.Contract('0x22ff293e14F1EC3A09B137e9e06084AFd63adDF9', sfJson.abi, web3react.library.getSigner(web3react.account));
-    const cfa = new ethers.Contract('0xEd6BcbF6907D4feEEe8a8875543249bEa9D308E8', cfaJson.abi);
-
-
-    /*await sfc!.callAgreement('0xEd6BcbF6907D4feEEe8a8875543249bEa9D308E8', cfa!.interface.encodeFunctionData('createFlow', [
-      inToken!.id,
-      poolAddress,
-      sum.toBN(),
-      '0x'
-    ]), encodeStreamSwapData(args));*/
-
-    await sf.cfa.createFlow({
-      flowRate: sum.toString(0, true),
-      sender: web3react.account,
-      receiver: poolAddress,
-      superToken: inToken!.id,
-      userData: encodeStreamSwapData(args),
-    });
-
-    /*
-    const user = sf.user({ 
-      address: web3react.account,
-      token: inToken!.id
-    });
-
-    await user.flow({
-        recipient: poolAddress,
-        flowRate: sum.toString(0, true),
-        userData: encodeStreamSwapData(args)
-    });*/
-
+    await constructFlow(web3react.library, web3react.account!, poolAddress!, inToken!.id, args);
   }
 
-  if (tokensInfo.error || existingSwapInfo.error) {
+  if (tokensInfo.error || poolsInfo.error || existingSwapInfo.error) {
     swapAction = { text: 'Error' };
-    swapAlert = 'Error: ' + (tokensInfo.error || existingSwapInfo.error);
+    swapAlert = <Alert severity="error" style={{marginTop: '20px'}}>(tokensInfo.error || poolsInfo.error || existingSwapInfo.error)</Alert>;
   }
   else if (!inToken || !outToken || !inAmount) {
     swapAction = { text: 'Enter Values' }; // waiting for fields to be filled in
@@ -183,13 +149,13 @@ const Exchange = () => {
   }
 
   return (
-    <MainLayout title="Exchange">
+    <MainLayout title="Swap">
       <Paper className={styles.form}>
         <T variant="h2">Continuous Swap</T>
-        <T variant="body1">Continuously exchange one super token for another. Rate automatically adjust to market over time.</T>
-  
+        <T variant="body1">Continuously exchange one super token for another. The returned token rate automatically adjusts to market over time.</T>
+
         <Grid container justify="center" spacing={3}>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm={3}>
             <Autocomplete
               options={allTokens || []}
               getOptionLabel={(o: Token) => o.symbol}
@@ -202,21 +168,24 @@ const Exchange = () => {
               fullWidth
             />
           </Grid>
+          <Grid container alignItems="center" xs={12} sm={3}>
+            {inTokenBalance != null && <T variant="body1">Balance: {inTokenBalance}</T>}
+          </Grid>
         </Grid>
         <Grid container justify="center" spacing={3}>
-          <Grid item xs={8} sm={4}>
+          <Grid item xs={8} sm={3}>
             <TextField required id="from-amount" label={(inToken?.symbol || 'Token') + ' rate'} fullWidth type="text" value={inAmount} onChange={(event) => setInAmount(event!.target.value)} />
           </Grid>
-          <Grid item xs={4} sm={2}>
+          <Grid item xs={4} sm={3}>
             <Select id="from-rate-unit" fullWidth className={styles.selectInput} value={inAmountPeriod} onChange={(event) => setInAmountPeriod(event.target.value as any)}>
               {Object.keys(TimePeriod).map(v => <MenuItem key={v} value={v}>/{v}</MenuItem>)}
             </Select>
           </Grid>
         </Grid>
         <Grid container justify="center" spacing={3}>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm={3}>
             <Autocomplete
-              options={allTokens}
+              options={allTokens || []}
               getOptionLabel={(o: Token) => o.symbol}
               getOptionSelected={(o: Token) => o.id == outToken?.id}
               filterOptions={createFilterOptions({ stringify: (o) => `${o.symbol} - ${o.name}` })}
@@ -226,6 +195,9 @@ const Exchange = () => {
               id="to-token"
               fullWidth
             />
+          </Grid>
+          <Grid container alignItems="center" xs={12} sm={3}>
+            {outTokenBalance != null && <T variant="body1">Balance: {outTokenBalance}</T>}
           </Grid>
         </Grid>
 
@@ -237,30 +209,32 @@ const Exchange = () => {
         </Grid>
 
         {advancedEnabled && <Grid container justify="center" spacing={3}>
-          <Grid item xs={6} sm={4}>
+          <Grid item xs={4} sm={2}>
             <TextField
               id="min-received"
-              label="Min Received"
+              label="Min Out"
               fullWidth
               type="text"
               value={minOut || ''}
               onChange={(event) => { setMinOut(event.target.value) }}
             />
           </Grid>
-          <Grid item xs={6} sm={4}>
+          <Grid item xs={4} sm={2}>
             <TextField
               id="max-received"
-              label="Max Received"
+              label="Max Out"
               fullWidth
               type="text"
               value={maxOut || ''}
               onChange={(event) => { setMaxOut(event.target.value) }}
             />
           </Grid>
+          <Grid container alignItems="center" xs={4} sm={2}>/{inAmountPeriod}
+          </Grid>
         </Grid>}
 
-        {swapAlert && <Alert severity="info">{swapAlert}</Alert>}
-  
+        {swapAlert}
+
         <Grid container justify="center" spacing={3} className={styles.controlRow}>
           <Grid item xs={4}>
             <Button color="primary" variant="contained" className={styles.submitButton} onClick={swapAction.action} disabled={!swapAction.action}>
@@ -270,7 +244,7 @@ const Exchange = () => {
         </Grid>
       </Paper>
     </MainLayout>
-  ); 
+  );
 }
 
-export default Exchange;
+export default Swap;

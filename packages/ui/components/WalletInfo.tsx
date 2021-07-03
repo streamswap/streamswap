@@ -18,6 +18,7 @@ const WalletInfo = () => {
       }
       {!active && 
         <Grid container justify="center">
+          <p>Goerli Only.</p>
           <Button variant="contained" onClick={() => { activate(injected) }} style={{margin: '10px'}}>Connect Browser</Button>
           <Button variant="contained" onClick={() => { activate(walletconnect) }} style={{margin: '10px'}}>Connect WalletConnect</Button>
         </Grid>
