@@ -1,6 +1,6 @@
 /* eslint-disable prefer-const */
 
-import { Address, BigDecimal, BigInt, Bytes, ethereum, crypto, log } from '@graphprotocol/graph-ts';
+import { Address, BigDecimal, BigInt, Bytes, ethereum, crypto, log, store } from '@graphprotocol/graph-ts';
 import { LOG_NEW_POOL } from '../generated/StreamSwap/StreamSwapFactory';
 import { Pool as PoolTemplate } from '../generated/templates';
 import {
@@ -197,13 +197,6 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   pooledInToken.volume = pooledInToken.volume.plus(amountInSinceLastSet);
   pooledInToken.save();
 
-  swap.timestamp = event.block.timestamp;
-  swap.transaction = event.transaction.hash.toHex();
-  swap.minOut = convertTokenToDecimal(event.params.minOut, tokenOut.decimals);
-  swap.maxOut = convertTokenToDecimal(event.params.maxOut, tokenOut.decimals);
-  swap.rateIn = convertTokenToDecimal(event.params.tokenRateIn, tokenIn.decimals);
-  swap.save();
-
   tokenIn.instantSwapCount = tokenIn.instantSwapCount.plus(ONE_BI);
   tokenOut.instantSwapCount = tokenOut.instantSwapCount.plus(ONE_BI);
   pool.instantSwapCount = pool.instantSwapCount.plus(ONE_BI);
@@ -214,6 +207,19 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   updatePoolDayData(event, 'continuous');
   updatePoolHourData(event, 'continuous');
   updateTokenDayData(tokenIn, event, 'continuous');
+
+  if(event.params.tokenRateIn.equals(BigInt.fromI32(0))) {
+    store.remove('ContinuousSwap', swap.id);
+    return;
+  }
+
+  swap.timestamp = event.block.timestamp;
+  swap.transaction = event.transaction.hash.toHex();
+  swap.minOut = convertTokenToDecimal(event.params.minOut, tokenOut.decimals);
+  swap.maxOut = convertTokenToDecimal(event.params.maxOut, tokenOut.decimals);
+  swap.rateIn = convertTokenToDecimal(event.params.tokenRateIn, tokenIn.decimals);
+  swap.currentRateOut = BigInt.fromI32(0).toBigDecimal();
+  swap.save();
 }
 
 export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
@@ -224,6 +230,12 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
 
   let tokenInId = event.params.tokenIn.toHex();
   let tokenOutId = event.params.tokenOut.toHex();
+
+  if(tokenInId == '0x0000000000000000000000000000000000000000' || tokenOutId == '0x0000000000000000000000000000000000000000') {
+    // bug emit in old contract
+    return;
+  }
+
   let tokenIn = Token.load(tokenInId)!;
   assert(tokenIn != null, 'In token must be defined');
   let tokenOut = Token.load(tokenOutId)!;
