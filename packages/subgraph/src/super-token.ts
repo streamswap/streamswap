@@ -2,22 +2,18 @@
 
 import {
   AgreementAccountStateUpdated,
-  AgreementCreated,
   AgreementLiquidated,
   AgreementStateUpdated,
-  AgreementTerminated,
-  AgreementUpdated,
-  Bailout,
   Burned,
   Minted,
   Sent,
+  SuperToken,
   TokenDowngraded,
   TokenUpgraded,
   Transfer,
 } from '../generated/StreamSwap/SuperToken';
 import { Address, ethereum } from '@graphprotocol/graph-ts';
-import { SuperToken } from '../generated/StreamSwap/SuperToken';
-import { Token, User, UserToken } from '../generated/schema';
+import { Token, UserToken } from '../generated/schema';
 import { assert, convertTokenToDecimal, getCFAContract } from './helpers';
 
 function update(user: Address, event: ethereum.Event): void {
@@ -57,8 +53,6 @@ export function handleAgreementAccountStateUpdated(event: AgreementAccountStateU
   update(event.params.account, event);
 }
 
-// export function handleAgreementCreated(event: AgreementCreated): void {}
-
 export function handleAgreementLiquidated(event: AgreementLiquidated): void {
   update(event.params.penaltyAccount, event);
   update(event.params.rewardAccount, event);
@@ -67,10 +61,6 @@ export function handleAgreementLiquidated(event: AgreementLiquidated): void {
 export function handleAgreementStateUpdated(event: AgreementStateUpdated): void {
   update(event.params.account, event);
 }
-
-// export function handleAgreementTerminated(event: AgreementTerminated): void {}
-// export function handleAgreementUpdated(event: AgreementUpdated): void {}
-// export function handleBailout(event: Bailout): void {}
 
 export function handleBurned(event: Burned): void {
   update(event.params.from, event);

@@ -59,6 +59,8 @@ templates:
           file: ./node_modules/@streamswap/core/artifacts/@superfluid-finance/ethereum-contracts/contracts/superfluid/SuperToken.sol/SuperToken.json
         - name: StreamSwapPool
           file: ./node_modules/@streamswap/core/artifacts/contracts/StreamSwapPool.sol/StreamSwapPool.json
+        - name: ConstantFlowAgreementV1
+          file: ./node_modules/@streamswap/core/artifacts/@superfluid-finance/ethereum-contracts/contracts/agreements/ConstantFlowAgreementV1.sol/ConstantFlowAgreementV1.json
       eventHandlers:
         - event: LOG_BIND_NEW(indexed address)
           handler: handleNewToken
@@ -87,21 +89,15 @@ templates:
       abis:
         - name: SuperToken
           file: ./node_modules/@streamswap/core/artifacts/@superfluid-finance/ethereum-contracts/contracts/superfluid/SuperToken.sol/SuperToken.json
+        - name: ConstantFlowAgreementV1
+          file: ./node_modules/@streamswap/core/artifacts/@superfluid-finance/ethereum-contracts/contracts/agreements/ConstantFlowAgreementV1.sol/ConstantFlowAgreementV1.json
       eventHandlers:
         - event: AgreementAccountStateUpdated(indexed address,indexed address,bytes)
           handler: handleAgreementAccountStateUpdated
-#        - event: AgreementCreated(indexed address,bytes32,bytes32[])
-#          handler: handleAgreementCreated
         - event: AgreementLiquidated(indexed address,bytes32,indexed address,indexed address,uint256)
           handler: handleAgreementLiquidated
         - event: AgreementStateUpdated(indexed address,indexed address,uint256)
           handler: handleAgreementStateUpdated
-#        - event: AgreementTerminated(indexed address,bytes32)
-#          handler: handleAgreementTerminated
-#        - event: AgreementUpdated(indexed address,bytes32,bytes32[])
-#          handler: handleAgreementUpdated
-#        - event: Bailout(indexed address,uint256)
-#          handler: handleBailout
         - event: Burned(indexed address,indexed address,uint256,bytes,bytes)
           handler: handleBurned
         - event: Minted(indexed address,indexed address,uint256,bytes,bytes)
