@@ -1,15 +1,6 @@
 /* eslint-disable prefer-const */
 
-import {
-  Address,
-  BigDecimal,
-  BigInt,
-  Bytes,
-  ethereum,
-  crypto,
-  log,
-  store,
-} from '@graphprotocol/graph-ts';
+import { BigDecimal, BigInt, Bytes, crypto, log, store } from '@graphprotocol/graph-ts';
 import { LOG_NEW_POOL } from '../generated/StreamSwap/StreamSwapFactory';
 import { Pool as PoolTemplate, SuperToken as SuperTokenTemplate } from '../generated/templates';
 import {
@@ -19,9 +10,6 @@ import {
   PooledToken,
   StreamSwapFactory,
   Token,
-  Transaction,
-  User,
-  UserToken,
 } from '../generated/schema';
 import {
   LOG_BIND_NEW,
@@ -32,11 +20,17 @@ import {
   LOG_SWAP,
 } from '../generated/templates/Pool/StreamSwapPool';
 import { SuperToken } from '../generated/StreamSwap/SuperToken';
-import { convertTokenToDecimal, ONE_BI, ZERO_BD, ZERO_BI, assert, getCFAContract } from './helpers';
+import {
+  assert,
+  convertTokenToDecimal,
+  makeTxn,
+  makeUser,
+  ONE_BI,
+  ZERO_BD,
+  ZERO_BI,
+} from './helpers';
 import { updatePoolDayData, updatePoolHourData, updateTokenDayData } from './day-updates';
-import { updateUserTokenBalances } from './super-token';
-
-let CFA_ADDR = '0xEd6BcbF6907D4feEEe8a8875543249bEa9D308E8';
+import { makeUserToken } from './super-token';
 
 export function handleNewPool(event: LOG_NEW_POOL): void {
   PoolTemplate.create(event.params.pool);
@@ -96,49 +90,6 @@ export function handleNewToken(event: LOG_BIND_NEW): void {
     pooledToken.volume = ZERO_BD;
     pooledToken.save();
   }
-}
-
-/** Make a transaction (if not already existing) and return the transaction id */
-function makeTxn(event: ethereum.Event): string {
-  let transactionId = event.transaction.hash.toHex();
-  let transaction = Transaction.load(transactionId);
-  if (!transaction) {
-    transaction = new Transaction(transactionId);
-    transaction.blockNumber = event.block.number;
-    transaction.timestamp = event.block.timestamp;
-    transaction.save();
-  }
-  return transactionId;
-}
-
-function makeUserToken(
-  userAddr: Address,
-  tokenAddr: Address,
-  event: ethereum.Event,
-  token?: Token,
-): UserToken {
-  let userId = userAddr.toHex();
-  let tokenId = tokenAddr.toHex();
-  let userTokenId = userId.concat('-').concat(tokenId);
-  let userToken = UserToken.load(userTokenId)!;
-  if (!userToken) {
-    userToken = new UserToken(userTokenId);
-    userToken.token = tokenId;
-    userToken.user = userId;
-    updateUserTokenBalances(userToken, event, token);
-  }
-  return userToken;
-}
-
-/** Make a new user (if not already existing) and return the userId */
-function makeUser(userAddr: Address): string {
-  let userId = userAddr.toHex();
-  let user = User.load(userId);
-  if (!user) {
-    user = new User(userId);
-    user.save();
-  }
-  return userId;
 }
 
 export function handleInstantSwap(event: LOG_SWAP): void {
