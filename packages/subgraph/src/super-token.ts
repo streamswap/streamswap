@@ -17,19 +17,30 @@ import { Token, UserToken } from '../generated/schema';
 import { assert, convertTokenToDecimal, getCFAContract } from './helpers';
 
 function update(user: Address, event: ethereum.Event): void {
-  let userId = user.toHex();
-  let tokenId = event.address.toHex();
-  let userTokenId = userId.concat('-').concat(tokenId);
-  let userToken = UserToken.load(userTokenId);
-  if (!userToken) {
-    // This user is not trading this token on streamswap
-    return;
-  }
-
-  updateUserTokenBalances(userToken!, event);
+  let userToken = makeUserToken(user, event.address, event);
+  updateUserTokenBalances(userToken, event);
 }
 
-export function updateUserTokenBalances(
+export function makeUserToken(
+  userAddr: Address,
+  tokenAddr: Address,
+  event: ethereum.Event,
+  token?: Token,
+): UserToken {
+  let userId = userAddr.toHex();
+  let tokenId = tokenAddr.toHex();
+  let userTokenId = userId.concat('-').concat(tokenId);
+  let userToken = UserToken.load(userTokenId)!;
+  if (!userToken) {
+    userToken = new UserToken(userTokenId);
+    userToken.token = tokenId;
+    userToken.user = userId;
+    updateUserTokenBalances(userToken, event, token);
+  }
+  return userToken;
+}
+
+function updateUserTokenBalances(
   userToken: UserToken,
   event: ethereum.Event,
   token: Token | null = null,

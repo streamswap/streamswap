@@ -34,7 +34,7 @@ import {
 import { SuperToken } from '../generated/StreamSwap/SuperToken';
 import { convertTokenToDecimal, ONE_BI, ZERO_BD, ZERO_BI, assert, getCFAContract } from './helpers';
 import { updatePoolDayData, updatePoolHourData, updateTokenDayData } from './day-updates';
-import { updateUserTokenBalances } from './super-token';
+import { makeUserToken } from './super-token';
 
 let CFA_ADDR = '0xEd6BcbF6907D4feEEe8a8875543249bEa9D308E8';
 
@@ -109,25 +109,6 @@ function makeTxn(event: ethereum.Event): string {
     transaction.save();
   }
   return transactionId;
-}
-
-function makeUserToken(
-  userAddr: Address,
-  tokenAddr: Address,
-  event: ethereum.Event,
-  token?: Token,
-): UserToken {
-  let userId = userAddr.toHex();
-  let tokenId = tokenAddr.toHex();
-  let userTokenId = userId.concat('-').concat(tokenId);
-  let userToken = UserToken.load(userTokenId)!;
-  if (!userToken) {
-    userToken = new UserToken(userTokenId);
-    userToken.token = tokenId;
-    userToken.user = userId;
-    updateUserTokenBalances(userToken, event, token);
-  }
-  return userToken;
 }
 
 /** Make a new user (if not already existing) and return the userId */
