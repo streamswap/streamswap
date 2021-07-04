@@ -13,11 +13,13 @@ export default async function constructFlow(provider: ethers.providers.Provider,
     await sf.initialize();
 
     if (!swaps.length) {
-        await sf.cfa.updateFlow({
+        await sf.cfa.deleteFlow({
             sender: account,
             receiver: pool,
             superToken: sendToken,
         });
+
+        return;
     }
 
     let sum = new Wei(0);

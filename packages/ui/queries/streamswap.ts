@@ -2,6 +2,7 @@ import { ApolloClient, gql, InMemoryCache } from '@apollo/client';
 
 export interface User {
   id: string
+  balances: Balance[]
   continuousSwaps: ContinuousSwap[]
 }
 
@@ -29,69 +30,51 @@ export interface ContinuousSwap {
 export interface Balance {
   token: Token
   balance: string
-  timestamp: number
+  lastAction: number
   netFlow: string
 }
 
 export const CLIENT = new ApolloClient({ uri: 'https://api.thegraph.com/subgraphs/name/streamswap/streamswap', cache: new InMemoryCache()});
 
-export const SWAPS_FROM_ADDRESS = gql`
-query GetSwapsFromAddressFromToken($address: String!) {
+export const USER_INFO = gql`
+query GetUserInfo($address: String!) {
   user(id: $address) {
-    continuousSwaps {
-      user {
+    id
+
+    balances(orderBy:balance,orderDirection:desc) {
+      token {
         id
+        symbol
+        name
+        decimals
       }
+      balance
+      netFlow
+      lastAction
+    }
+
+    continuousSwaps {
       tokenIn {
         id
         symbol
         name
+        decimals
       }
       tokenOut {
         id
         symbol
         name
+        decimals
       }
 
       pool {
         id
       }
-  
+
       rateIn
       currentRateOut
       minOut
       maxOut
-    }
-  }
-}`;
-
-export const USER_INFO = gql`
-query GetUserInfo($address: String!) {
-  user(id: $address) {
-    id
-    continuousSwaps {
-      tokenIn {
-        symbol
-        name
-        decimals
-        tokenDayData {
-          date
-          dailyVolumeToken
-          dailyTxns
-        }
-      }
-      tokenOut {
-        symbol
-        name
-        decimals
-        tokenDayData {
-          date
-          dailyVolumeToken
-          dailyTxns
-        }
-      }
-
-      rateIn
     }
   }
 }`;

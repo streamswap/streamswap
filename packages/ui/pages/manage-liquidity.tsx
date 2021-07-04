@@ -11,6 +11,7 @@ import RadioGroup from '@material-ui/core/RadioGroup';
 import Radio from '@material-ui/core/Radio';
 import FormControlLabel from '@material-ui/core/FormControlLabel';
 import { Token } from '../queries/streamswap';
+import { Alert } from '@material-ui/lab';
 
 const placeholderTokens: Token[] = [
   { symbol: 'USDc', name: 'USDC', decimals: 6, id: '' },
@@ -22,6 +23,7 @@ let mode: 'deposit' | 'withdraw' = 'deposit';
 const Save = () => (
   <MainLayout title="Save">
     <Paper className={styles.form}>
+      <Alert severity="info">This page is still under construction, and does not do anything.</Alert>
       <T variant="h2">Save</T>
       <T variant="body1">Provide liquidity to facilitate the continuous exchange of tokens.</T>
 

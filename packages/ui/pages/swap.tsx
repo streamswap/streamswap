@@ -14,14 +14,14 @@ import FormControlLabel from '@material-ui/core/FormControlLabel';
 
 import { useQuery } from '@apollo/client';
 
-import React, { Component, ReactElement, useEffect, useState } from 'react';
+import React, { ReactElement, useEffect, useState } from 'react';
 import { Alert } from '@material-ui/lab';
 
-import { TimePeriod } from '../utils/time';
+import { currentBalance, TimePeriod } from '../utils/time';
 
 import Wei from '@synthetixio/wei';
 import { useWeb3React } from '@web3-react/core';
-import { SWAPS_FROM_ADDRESS, ALL_TOKENS, ALL_POOLS, ContinuousSwap, Token, CLIENT, Pool } from '../queries/streamswap';
+import { USER_INFO, ALL_TOKENS, ALL_POOLS, ContinuousSwap, Token, CLIENT, Pool, User, Balance } from '../queries/streamswap';
 
 import { injected } from '../utils/web3-connectors';
 import { StreamSwapArgs } from '../utils/encodeStreamSwapData';
@@ -50,13 +50,11 @@ const Swap = () => {
 
   const tokensInfo = useQuery<{ tokens: Token[] }>(ALL_TOKENS, { client: CLIENT });
 
-  //const accountInfo = useQuery<{ accounts: Account }>(ACCOUNT_BALANCES_AND_RATES, { client: SUPERFLUID_CLIENT, skip: !web3react.active, variables: { account: web3react.account } });
-
   const allTokens = tokensInfo.data ? tokensInfo.data.tokens : null;
 
   const poolsInfo = useQuery<{ pools: Pool[] }>(ALL_POOLS, { client: CLIENT });
 
-  const existingSwapInfo = useQuery<{ user: { continuousSwaps: ContinuousSwap[] } }>(SWAPS_FROM_ADDRESS, {
+  const userInfo = useQuery<{ user: User }>(USER_INFO, {
     client: CLIENT, skip: !web3react.active, variables: {
       address: web3react.account?.toLowerCase()
     }
@@ -73,23 +71,27 @@ const Swap = () => {
 
   const poolAddress = poolsInfo.data ? poolsInfo.data.pools[0].id : null;
 
-  const inTokenBalance = 0;
-  const outTokenBalance = 0;
+  const inTokenBalance: Balance|null = userInfo.data && inToken ? 
+    userInfo.data?.user?.balances?.find(b => b.token.symbol == inToken?.symbol) || 
+    {balance: '0', netFlow: '0', lastAction: 0} as Balance : null;
+  const outTokenBalance: Balance|null = userInfo.data && outToken ? 
+    userInfo.data?.user?.balances?.find(b => b.token.symbol == outToken?.symbol) || 
+    {balance: '0', netFlow: '0', lastAction: 0} as Balance : null;
 
-  let swapAlert: ReactElement | null = null;
+  let swapAlert: ReactElement|ReactElement[]|null = null;
   let swapAction: { text: string, action?: () => void };
 
-  const matchingPrevSwaps: ContinuousSwap[] = inToken && outToken && existingSwapInfo.data ?
-    existingSwapInfo.data?.user?.continuousSwaps.filter(cs => cs.tokenIn.id == inToken!.id) || [] :
+  const matchingPrevSwaps: ContinuousSwap[] = inToken && outToken && userInfo.data ?
+    userInfo.data?.user?.continuousSwaps.filter(cs => cs.tokenIn.id == inToken!.id) || [] :
     [];
 
   const matchingOut = matchingPrevSwaps.find(cs => cs.tokenOut.id == outToken!.id);
 
   if (matchingOut) {
-    swapAlert = <div>
-      <Alert severity="info" style={{marginTop: '20px'}}>There is an existing continuous swap for this pair. This will be updated with new settings if you continue.</Alert>
+    swapAlert = [
+      <Alert severity="info" style={{marginTop: '20px'}}>There is an existing continuous swap for this pair. This will be updated with new settings if you continue.</Alert>,
       <ContinuousSwapCard continuousSwap={matchingOut} showActions={false}></ContinuousSwapCard>
-    </div>
+    ]
   }
 
   async function connectWallet() {
@@ -127,16 +129,16 @@ const Swap = () => {
     try {
       await constructFlow(web3react.library, web3react.account!, poolAddress!, inToken!.id, args);
     } catch(err) {
-      return setTxnError('Failed to generate transaction: ' + err.error.message);
+      return setTxnError('Failed to generate transaction: ' + (err.error ? err.error.message : err.toString()));
     }
 
     // refetch all data
-    existingSwapInfo.refetch();
+    userInfo.refetch();
     
     setTxnError('');
   }
 
-  if (tokensInfo.error || poolsInfo.error || existingSwapInfo.error) {
+  if (tokensInfo.error || poolsInfo.error || userInfo.error) {
     swapAction = { text: 'Error' };
     swapAlert = <Alert severity="error" style={{marginTop: '20px'}}>(tokensInfo.error || poolsInfo.error || existingSwapInfo.error)</Alert>;
   }
@@ -146,7 +148,7 @@ const Swap = () => {
   else if (!web3react.active) {
     swapAction = { text: 'Connect Wallet', action: connectWallet };
   }
-  else if (!tokensInfo.data || !existingSwapInfo.data) {
+  else if (!tokensInfo.data || !userInfo.data) {
     swapAction = { text: 'Loading...' };
   }
   else if (Object.is(parseFloat(inAmount), NaN)) {
@@ -184,7 +186,7 @@ const Swap = () => {
             />
           </Grid>
           <Grid container alignItems="center" xs={12} sm={3}>
-            {inTokenBalance != null && <T variant="body1">Balance: {inTokenBalance}</T>}
+            {inTokenBalance != null && <T variant="body1">Balance: {currentBalance(inTokenBalance, new Date()).toString(6)}</T>}
           </Grid>
         </Grid>
         <Grid container justify="center" spacing={3}>
@@ -212,7 +214,7 @@ const Swap = () => {
             />
           </Grid>
           <Grid container alignItems="center" xs={12} sm={3}>
-            {outTokenBalance != null && <T variant="body1">Balance: {outTokenBalance}</T>}
+            {outTokenBalance != null && <T variant="body1">Balance: {currentBalance(outTokenBalance, new Date()).toString(6)}</T>}
           </Grid>
         </Grid>
 
@@ -248,7 +250,9 @@ const Swap = () => {
           </Grid>
         </Grid>}
 
-        {swapAlert}
+        <Grid container justify="center" alignItems="center" direction="column">
+          {swapAlert}
+        </Grid>
 
         <Grid container justify="center" spacing={3} className={styles.controlRow}>
           <Grid item sm={4}>
