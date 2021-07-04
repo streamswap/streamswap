@@ -70,7 +70,7 @@ type Pool @entity {
 
 type User @entity {
   id: ID!
-  balance: [UserToken!]! @derivedFrom(field: "user")
+  balances: [UserToken!]! @derivedFrom(field: "user")
   instantSwaps: [InstantSwap!]! @derivedFrom(field: "user")
   continuousSwaps: [ContinuousSwap!]! @derivedFrom(field: "user")
 }
