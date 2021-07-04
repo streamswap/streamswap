@@ -70,8 +70,20 @@ type Pool @entity {
 
 type User @entity {
   id: ID!
+  balances: [UserToken!]! @derivedFrom(field: "user")
   instantSwaps: [InstantSwap!]! @derivedFrom(field: "user")
   continuousSwaps: [ContinuousSwap!]! @derivedFrom(field: "user")
+}
+
+type UserToken @entity {
+  # userId - tokenId
+  id: ID!
+  user: User!
+  token: Token!
+  balance: BigDecimal!
+  netFlow: BigDecimal!
+  # timestamp of the last action made
+  lastAction: BigInt!
 }
 
 type Transaction @entity {
