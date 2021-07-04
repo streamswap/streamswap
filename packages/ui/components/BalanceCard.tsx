@@ -14,7 +14,7 @@ class BalanceCard extends React.Component<BalanceCardProps, {curTime: number}> {
 
     interval: any;
 
-    constructor(props) {
+    constructor(props: BalanceCardProps) {
         super(props);
         this.state = {
             curTime: Date.now() / 1000

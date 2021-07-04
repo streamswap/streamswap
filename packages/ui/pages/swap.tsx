@@ -89,8 +89,8 @@ const Swap = () => {
 
   if (matchingOut) {
     swapAlert = [
-      <Alert severity="info" style={{marginTop: '20px'}}>There is an existing continuous swap for this pair. This will be updated with new settings if you continue.</Alert>,
-      <ContinuousSwapCard continuousSwap={matchingOut} showActions={false}></ContinuousSwapCard>
+      <Alert key="alert" severity="info" style={{marginTop: '20px'}}>There is an existing continuous swap for this pair. This will be updated with new settings if you continue.</Alert>,
+      <ContinuousSwapCard key="swapcard" continuousSwap={matchingOut} showActions={false}></ContinuousSwapCard>
     ]
   }
 
