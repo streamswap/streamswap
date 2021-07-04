@@ -26,6 +26,13 @@ export interface ContinuousSwap {
   maxOut: string
 }
 
+export interface Balance {
+  token: Token
+  balance: string
+  timestamp: number
+  netFlow: string
+}
+
 export const CLIENT = new ApolloClient({ uri: 'https://api.thegraph.com/subgraphs/name/streamswap/streamswap', cache: new InMemoryCache()});
 
 export const SWAPS_FROM_ADDRESS = gql`

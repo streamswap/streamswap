@@ -46,6 +46,8 @@ const Swap = () => {
   const [minOut, setMinOut] = useState<string>('');
   const [maxOut, setMaxOut] = useState<string>('');
 
+  const [txnError, setTxnError] = useState<string>('');
+
   const tokensInfo = useQuery<{ tokens: Token[] }>(ALL_TOKENS, { client: CLIENT });
 
   //const accountInfo = useQuery<{ accounts: Account }>(ACCOUNT_BALANCES_AND_RATES, { client: SUPERFLUID_CLIENT, skip: !web3react.active, variables: { account: web3react.account } });
@@ -78,7 +80,7 @@ const Swap = () => {
   let swapAction: { text: string, action?: () => void };
 
   const matchingPrevSwaps: ContinuousSwap[] = inToken && outToken && existingSwapInfo.data ?
-    existingSwapInfo.data?.user.continuousSwaps.filter(cs => cs.tokenIn.id == inToken!.id) || [] :
+    existingSwapInfo.data?.user?.continuousSwaps.filter(cs => cs.tokenIn.id == inToken!.id) || [] :
     [];
 
   const matchingOut = matchingPrevSwaps.find(cs => cs.tokenOut.id == outToken!.id);
@@ -122,7 +124,16 @@ const Swap = () => {
       });
     }
 
-    await constructFlow(web3react.library, web3react.account!, poolAddress!, inToken!.id, args);
+    try {
+      await constructFlow(web3react.library, web3react.account!, poolAddress!, inToken!.id, args);
+    } catch(err) {
+      return setTxnError('Failed to generate transaction: ' + err.error.message);
+    }
+
+    // refetch all data
+    existingSwapInfo.refetch();
+    
+    setTxnError('');
   }
 
   if (tokensInfo.error || poolsInfo.error || existingSwapInfo.error) {
@@ -146,6 +157,10 @@ const Swap = () => {
   }
   else {
     swapAction = { text: 'Swap', action: executeSwap };
+  }
+
+  if(txnError) {
+    swapAlert = <Alert severity="error" style={{marginTop: '20px'}}>{txnError}</Alert>;
   }
 
   return (
@@ -236,7 +251,7 @@ const Swap = () => {
         {swapAlert}
 
         <Grid container justify="center" spacing={3} className={styles.controlRow}>
-          <Grid item xs={4}>
+          <Grid item sm={4}>
             <Button color="primary" variant="contained" className={styles.submitButton} onClick={swapAction.action} disabled={!swapAction.action}>
               {swapAction.text}
             </Button>

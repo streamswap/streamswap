@@ -1,18 +1,16 @@
-import Link from 'next/link';
-import styles from '../styles/Home.module.css';
 import MainLayout from '../components/MainLayout';
-import Card from '@material-ui/core/Card';
 import Grid from '@material-ui/core/Grid';
-import CardContent from '@material-ui/core/CardContent';
 import T from '@material-ui/core/Typography';
 import { useQuery } from '@apollo/client';
-import { CLIENT, ContinuousSwap, SWAPS_FROM_ADDRESS } from '../queries/streamswap';
+import { Balance, CLIENT, ContinuousSwap, SWAPS_FROM_ADDRESS } from '../queries/streamswap';
 
+import BalanceCard from '../components/BalanceCard';
 import ContinuousSwapCard from '../components/ContinuousSwapCard';
 import { useWeb3React } from '@web3-react/core';
 import Wei from '@synthetixio/wei';
 import { StreamSwapArgs } from '../utils/encodeStreamSwapData';
 import constructFlow from '../utils/flow-constructor';
+import { useEffect } from 'react';
 
 const Home = () => {
 
@@ -24,7 +22,13 @@ const Home = () => {
     }
   });
 
-  const continuousSwaps = existingSwapInfo.data?.user.continuousSwaps;
+  useEffect(() => {
+    // ensure fresh data
+    existingSwapInfo.refetch();
+  }, []);
+
+  const continuousSwaps = existingSwapInfo.data?.user?.continuousSwaps;
+  const balances: Balance[] = [];
 
   async function cancelContinuousSwap(cancelledSwap: ContinuousSwap) {
 
@@ -46,15 +50,19 @@ const Home = () => {
 
   return (
     <MainLayout title="Home">
-    <T variant="h3" style={{margin: '40px'}}>Balances</T>
+      {!active ? <T>Connect a wallet</T> : (<div>
+      <T variant="h3" style={{margin: '40px'}}>Balances</T>
 
-    <Grid container spacing={4} justify="center">
-    </Grid>
+      <Grid container spacing={4} justify="center">
+        {balances?.map(balance => <BalanceCard key={balance.token.id} balance={balance} />)}
+      </Grid>
       <T variant="h3" style={{margin: '40px'}}>Open Swaps</T>
 
       <Grid container spacing={4} justify="center">
         {continuousSwaps?.map(swap => <ContinuousSwapCard key={swap.tokenIn.id + swap.tokenOut.id} continuousSwap={swap} onCancel={cancelContinuousSwap} />)}
       </Grid>
+      </div>)}
+      
     </MainLayout>
   );
 };
