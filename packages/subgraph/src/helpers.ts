@@ -1,5 +1,6 @@
 /* eslint-disable prefer-const */
-import { BigInt, BigDecimal, log } from '@graphprotocol/graph-ts';
+import { BigInt, BigDecimal, log, Address } from '@graphprotocol/graph-ts';
+import { ConstantFlowAgreementV1 } from '../generated/StreamSwap/ConstantFlowAgreementV1';
 
 export const ADDRESS_ZERO = '0x0000000000000000000000000000000000000000';
 
@@ -15,6 +16,11 @@ export function exponentToBigDecimal(decimals: BigInt): BigDecimal {
     bd = bd.times(BigDecimal.fromString('10'));
   }
   return bd;
+}
+
+let CFA_ADDR = Address.fromString('0xEd6BcbF6907D4feEEe8a8875543249bEa9D308E8');
+export function getCFAContract(): ConstantFlowAgreementV1 {
+  return ConstantFlowAgreementV1.bind(CFA_ADDR);
 }
 
 export function bigDecimalExp18(): BigDecimal {
@@ -47,7 +53,7 @@ export function isNullEthValue(value: string): boolean {
 
 export function assert(statement: boolean, description: string): void {
   if (!statement) {
-    log.critical("Assert failure: {}", [description])
+    log.critical('Assert failure: {}', [description]);
     throw new Error(description);
   }
 }

@@ -1,8 +1,17 @@
 /* eslint-disable prefer-const */
 
-import { Address, BigDecimal, BigInt, Bytes, ethereum, crypto, log, store } from '@graphprotocol/graph-ts';
+import {
+  Address,
+  BigDecimal,
+  BigInt,
+  Bytes,
+  ethereum,
+  crypto,
+  log,
+  store,
+} from '@graphprotocol/graph-ts';
 import { LOG_NEW_POOL } from '../generated/StreamSwap/StreamSwapFactory';
-import { Pool as PoolTemplate } from '../generated/templates';
+import { Pool as PoolTemplate, SuperToken as SuperTokenTemplate } from '../generated/templates';
 import {
   ContinuousSwap,
   InstantSwap,
@@ -12,6 +21,7 @@ import {
   Token,
   Transaction,
   User,
+  UserToken,
 } from '../generated/schema';
 import {
   LOG_BIND_NEW,
@@ -22,8 +32,11 @@ import {
   LOG_SWAP,
 } from '../generated/templates/Pool/StreamSwapPool';
 import { SuperToken } from '../generated/StreamSwap/SuperToken';
-import { convertTokenToDecimal, ONE_BI, ZERO_BD, ZERO_BI, assert } from './helpers';
+import { convertTokenToDecimal, ONE_BI, ZERO_BD, ZERO_BI, assert, getCFAContract } from './helpers';
 import { updatePoolDayData, updatePoolHourData, updateTokenDayData } from './day-updates';
+import { updateUserTokenBalances } from './super-token';
+
+let CFA_ADDR = '0xEd6BcbF6907D4feEEe8a8875543249bEa9D308E8';
 
 export function handleNewPool(event: LOG_NEW_POOL): void {
   PoolTemplate.create(event.params.pool);
@@ -53,7 +66,7 @@ export function handleNewToken(event: LOG_BIND_NEW): void {
   let tokenId = tokenAddr.toHex();
   if (!Token.load(tokenId)) {
     let token = new Token(tokenId);
-    let contract = SuperToken.bind(event.params.token);
+    let contract = SuperToken.bind(tokenAddr);
     token.symbol = contract.symbol();
     token.name = contract.name();
     token.decimals = BigInt.fromI32(contract.decimals());
@@ -63,6 +76,7 @@ export function handleNewToken(event: LOG_BIND_NEW): void {
     token.totalLiquidity = ZERO_BD;
     token.underlyingToken = contract.getUnderlyingToken();
     token.save();
+    SuperTokenTemplate.create(tokenAddr);
   }
 
   let poolId = event.address.toHex();
@@ -97,6 +111,25 @@ function makeTxn(event: ethereum.Event): string {
   return transactionId;
 }
 
+function makeUserToken(
+  userAddr: Address,
+  tokenAddr: Address,
+  event: ethereum.Event,
+  token?: Token,
+): UserToken {
+  let userId = userAddr.toHex();
+  let tokenId = tokenAddr.toHex();
+  let userTokenId = userId.concat('-').concat(tokenId);
+  let userToken = UserToken.load(userTokenId)!;
+  if (!userToken) {
+    userToken = new UserToken(userTokenId);
+    userToken.token = tokenId;
+    userToken.user = userId;
+    updateUserTokenBalances(userToken, event, token);
+  }
+  return userToken;
+}
+
 /** Make a new user (if not already existing) and return the userId */
 function makeUser(userAddr: Address): string {
   let userId = userAddr.toHex();
@@ -116,6 +149,9 @@ export function handleInstantSwap(event: LOG_SWAP): void {
   let tokenOutId = event.params.tokenOut.toHex();
   let tokenIn = Token.load(tokenInId)!;
   let tokenOut = Token.load(tokenOutId)!;
+
+  makeUserToken(event.params.caller, event.params.tokenIn, event, tokenIn);
+  makeUserToken(event.params.caller, event.params.tokenOut, event, tokenOut);
 
   let swapId = transactionId.concat('-').concat(event.logIndex.toString());
   let swap = new InstantSwap(swapId);
@@ -143,14 +179,16 @@ export function handleInstantSwap(event: LOG_SWAP): void {
 }
 
 /** Expects 4 hex string ids */
-function makeContinuousSwapId(poolId: string, userId: string, tokenInId: string, tokenOutId: string): string {
+function makeContinuousSwapId(
+  poolId: string,
+  userId: string,
+  tokenInId: string,
+  tokenOutId: string,
+): string {
   return crypto
     .keccak256(
       Bytes.fromHexString(
-        userId
-          .concat(poolId.slice(2))
-          .concat(tokenInId.slice(2))
-          .concat(tokenOutId.slice(2)),
+        userId.concat(poolId.slice(2)).concat(tokenInId.slice(2)).concat(tokenOutId.slice(2)),
       ),
     )
     .toHex();
@@ -162,11 +200,14 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
 
   let tokenInId = event.params.tokenIn.toHex();
   let tokenOutId = event.params.tokenOut.toHex();
-  log.info("handleSetContinuousSwap TokenIn: {}, TokenOut: {}", [tokenInId, tokenOutId]);
+  log.info('handleSetContinuousSwap TokenIn: {}, TokenOut: {}', [tokenInId, tokenOutId]);
   let tokenIn = Token.load(tokenInId)!;
   assert(tokenIn != null, 'In token must be defined');
   let tokenOut = Token.load(tokenOutId)!;
   assert(tokenOut != null, 'Out token must be defined');
+
+  makeUserToken(event.params.caller, event.params.tokenIn, event, tokenIn);
+  makeUserToken(event.params.caller, event.params.tokenOut, event, tokenOut);
 
   let poolId = event.address.toHex();
   let pool = Pool.load(poolId);
@@ -203,10 +244,9 @@ export function handleSetContinuousSwap(event: LOG_SET_FLOW): void {
   tokenOut.save();
   pool.save();
 
-  if(event.params.tokenRateIn.equals(ZERO_BI)) {
+  if (event.params.tokenRateIn.equals(ZERO_BI)) {
     store.remove('ContinuousSwap', swap.id);
-  }
-  else {
+  } else {
     swap.timestamp = event.block.timestamp;
     swap.transaction = event.transaction.hash.toHex();
     swap.minOut = convertTokenToDecimal(event.params.minOut, tokenOut.decimals);
@@ -229,7 +269,10 @@ export function handleSetContinuousSwapRate(event: LOG_SET_FLOW_RATE): void {
   let tokenInId = event.params.tokenIn.toHex();
   let tokenOutId = event.params.tokenOut.toHex();
 
-  if(tokenInId == '0x0000000000000000000000000000000000000000' || tokenOutId == '0x0000000000000000000000000000000000000000') {
+  if (
+    tokenInId == '0x0000000000000000000000000000000000000000' ||
+    tokenOutId == '0x0000000000000000000000000000000000000000'
+  ) {
     // bug emit in old contract
     return;
   }
