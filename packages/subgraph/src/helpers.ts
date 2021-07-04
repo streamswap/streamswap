@@ -1,6 +1,7 @@
 /* eslint-disable prefer-const */
-import { BigInt, BigDecimal, log, Address } from '@graphprotocol/graph-ts';
+import {BigInt, BigDecimal, log, Address, ethereum} from '@graphprotocol/graph-ts';
 import { ConstantFlowAgreementV1 } from '../generated/StreamSwap/ConstantFlowAgreementV1';
+import {Transaction, User} from "../generated/schema";
 
 export const ADDRESS_ZERO = '0x0000000000000000000000000000000000000000';
 
@@ -56,4 +57,28 @@ export function assert(statement: boolean, description: string): void {
     log.critical('Assert failure: {}', [description]);
     throw new Error(description);
   }
+}
+
+/** Make a transaction (if not already existing) and return the transaction id */
+export function makeTxn(event: ethereum.Event): string {
+  let transactionId = event.transaction.hash.toHex();
+  let transaction = Transaction.load(transactionId);
+  if (!transaction) {
+    transaction = new Transaction(transactionId);
+    transaction.blockNumber = event.block.number;
+    transaction.timestamp = event.block.timestamp;
+    transaction.save();
+  }
+  return transactionId;
+}
+
+/** Make a new user (if not already existing) and return the userId */
+export function makeUser(userAddr: Address): string {
+  let userId = userAddr.toHex();
+  let user = User.load(userId);
+  if (!user) {
+    user = new User(userId);
+    user.save();
+  }
+  return userId;
 }

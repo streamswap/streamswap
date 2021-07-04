@@ -14,7 +14,7 @@ import {
 } from '../generated/StreamSwap/SuperToken';
 import { Address, ethereum } from '@graphprotocol/graph-ts';
 import { Token, UserToken } from '../generated/schema';
-import { assert, convertTokenToDecimal, getCFAContract } from './helpers';
+import { assert, convertTokenToDecimal, getCFAContract, makeUser } from './helpers';
 
 function update(user: Address, event: ethereum.Event): void {
   let userToken = makeUserToken(user, event.address, event);
@@ -25,7 +25,7 @@ export function makeUserToken(
   userAddr: Address,
   tokenAddr: Address,
   event: ethereum.Event,
-  token?: Token,
+  token: Token | null = null,
 ): UserToken {
   let userId = userAddr.toHex();
   let tokenId = tokenAddr.toHex();
@@ -33,6 +33,7 @@ export function makeUserToken(
   let userToken = UserToken.load(userTokenId)!;
   if (!userToken) {
     userToken = new UserToken(userTokenId);
+    makeUser(userAddr);
     userToken.token = tokenId;
     userToken.user = userId;
     updateUserTokenBalances(userToken, event, token);
