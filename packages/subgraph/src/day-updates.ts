@@ -1,3 +1,4 @@
+/* eslint-disable prefer-const */
 // mostly a copy of https://github.com/Uniswap/uniswap-v2-subgraph/blob/537e5392719ea9b02b3e56a42c1f3eba116d6918/src/mappings/dayUpdates.ts
 
 import { BigDecimal, BigInt, ethereum } from '@graphprotocol/graph-ts';
@@ -23,7 +24,7 @@ export function updatePoolDayData(event: ethereum.Event, type?: string): PoolDay
   let poolId = event.address.toHex();
   let dayPoolID = poolId.concat('-').concat(dayId.toString());
   let pool = Pool.load(poolId);
-  assert(pool != null, "Pool must be defined");
+  assert(pool != null, 'Pool must be defined');
   let poolDayData = PoolDayData.load(dayPoolID);
   if (!poolDayData) {
     poolDayData = new PoolDayData(dayPoolID);

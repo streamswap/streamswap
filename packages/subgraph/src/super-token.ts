@@ -1,3 +1,5 @@
+/* eslint-disable prefer-const */
+
 import {
   AgreementAccountStateUpdated,
   AgreementCreated,
@@ -18,10 +20,7 @@ import { SuperToken } from '../generated/StreamSwap/SuperToken';
 import { Token, User, UserToken } from '../generated/schema';
 import { assert, convertTokenToDecimal, getCFAContract } from './helpers';
 
-function update(
-  user: Address,
-  event: ethereum.Event,
-): void {
+function update(user: Address, event: ethereum.Event): void {
   let userId = user.toHex();
   let tokenId = event.address.toHex();
   let userTokenId = userId.concat('-').concat(tokenId);

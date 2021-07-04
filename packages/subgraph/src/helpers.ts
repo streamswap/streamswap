@@ -1,5 +1,5 @@
 /* eslint-disable prefer-const */
-import {BigInt, BigDecimal, log, Address} from '@graphprotocol/graph-ts';
+import { BigInt, BigDecimal, log, Address } from '@graphprotocol/graph-ts';
 import { ConstantFlowAgreementV1 } from '../generated/StreamSwap/ConstantFlowAgreementV1';
 
 export const ADDRESS_ZERO = '0x0000000000000000000000000000000000000000';
