@@ -70,7 +70,7 @@ const Home = () => {
       <Grid container spacing={4} justify="center">
         {balances.length ? 
           balances.map(balance => <BalanceCard key={balance.token.id} balance={balance} />) :
-          <T>No supertoken balances found! <a href="https://app.superfluid.finance/">Get test super tokens.</a></T>}
+          <T>No supertoken balances found! <a href="https://app.superfluid.finance/" rel="noreferrer" target="_blank">Get test super tokens.</a></T>}
       </Grid>
       <T variant="h3" style={{margin: '40px'}}>Open Swaps</T>
 

@@ -5,7 +5,7 @@ import styles from '../styles/WalletInfo.module.css';
 import { injected, walletconnect } from '../utils/web3-connectors';
 
 const WalletInfo = () => {
-  const { account, active, activate } = useWeb3React();
+  const { account, active, activate, deactivate } = useWeb3React();
 
   useEffect(() => {
     // try to connect to browser wallet by default
@@ -16,8 +16,9 @@ const WalletInfo = () => {
     <div className={styles.walletInfo}>
       {active && 
         <Grid container justify="center">
-          <Grid container xs={6} justify="center">
+          <Grid container xs={6} justify="center" alignItems="center">
             {account}
+            <Button variant="contained" onClick={() => { deactivate() }} style={{margin: '10px'}}>Disconnect</Button>
           </Grid>
         </Grid>
       }

@@ -18,6 +18,7 @@
   },
   "license": "GPL-3.0",
   "devDependencies": {
+    "@balancer-labs/v2-vault": "^1.0.0",
     "@graphprotocol/graph-cli": "^0.20.1",
     "lerna": "^4.0.0",
     "prettier": "^2.3.1"

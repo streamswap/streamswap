@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // SPDX-License-Identifier: GPLv3
-pragma solidity 0.7.6;
+pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "hardhat/console.sol";
@@ -31,18 +31,20 @@ import {
     IConstantFlowAgreementV1
 } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/agreements/IConstantFlowAgreementV1.sol";
 
-import {
-    SuperAppBase
-} from "@superfluid-finance/ethereum-contracts/contracts/apps/SuperAppBase.sol";
-
-import "./balancer/BToken.sol";
-import "./balancer/BMath.sol";
-
 import "./StreamSwapLibrary.sol";
+import "./StableMath.sol";
 
-contract StreamSwapPool is SuperAppBase, BBronze, BToken {
+import "@balancer-labs/v2-vault/contracts/interfaces/IVault.sol";
+import "@balancer-labs/v2-vault/contracts/interfaces/IGeneralPool.sol";
+import "@balancer-labs/v2-solidity-utils/contracts/helpers/InputHelpers.sol";
+import "@balancer-labs/v2-solidity-utils/contracts/helpers/WordCodec.sol";
+
+import { BasePool } from "@balancer-labs/v2-pool-utils/contracts/BasePool.sol";
+
+contract StreamSwapPool is IGeneralPool, BasePool {
 
     using StreamSwapLibrary for StreamSwapLibrary.Context;
+    using WordCodec for bytes32;
 
     struct SuperTokenVarsHelper {
         address tokenIn;
@@ -97,47 +99,33 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         bytes           data
     ) anonymous;
 
-    modifier _logs_() {
-        emit LOG_CALL(msg.sig, msg.sender, msg.data);
-        _;
-    }
+    enum JoinKind { INIT, EXACT_TOKENS_IN_FOR_BPT_OUT, TOKEN_IN_FOR_EXACT_BPT_OUT }
+    enum ExitKind { EXACT_BPT_IN_FOR_ONE_TOKEN_OUT, EXACT_BPT_IN_FOR_TOKENS_OUT, BPT_IN_FOR_EXACT_TOKENS_OUT }
 
-    modifier _lock_() {
-        require(!_mutex, "ERR_REENTRY");
-        _mutex = true;
-        _;
-        _mutex = false;
-    }
+    StreamSwapLibrary.Context streamSwapContext;
 
-    modifier _viewlock_() {
-        require(!_mutex, "ERR_REENTRY");
-        _;
-    }
-
-    bool private _mutex;
-
-    address private _factory;    // BFactory address to push token exitFee to
-    address private _controller; // has CONTROL role
-    bool private _publicSwap; // true if PUBLIC can call SWAP functions
-
-    // `setSwapFee` and `finalize` require CONTROL
-    // `finalize` sets `PUBLIC can SWAP`, `PUBLIC can JOIN`
-    uint private _swapFee;
-    bool private _finalized;
-
-    address[] private _superTokens;
-    mapping(address => address) _underlyingToSuperToken;
-
-    mapping(address => StreamSwapLibrary.Record) private  _records;
-    uint private _totalWeight;
-
-    StreamSwapLibrary.Context _streamSwapContext;
+    bytes32 public poolId;
 
     constructor(
+        IVault vault,
         ISuperfluid host,
-        IConstantFlowAgreementV1 cfa
+        IConstantFlowAgreementV1 cfa,
+        IERC20[] memory tokens,
+        address[] memory assetManagers
+    ) BasePool(
+        vault,
+        IVault.PoolSpecialization.GENERAL,
+        "StreamSwapPool",
+        "SSP",
+        tokens,
+        assetManagers,
+        0, //swapFeePercentage,
+        600, //pauseWindowDuration,
+        600, //bufferPeriodDuration,
+        msg.sender
     ) {
 
+        require(address(vault) != address(0), "vault is zero address");
         require(address(host) != address(0), "host is zero address");
         require(address(cfa) != address(0), "cfa is zero address");
 
@@ -149,803 +137,329 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
 
         host.registerApp(configWord);
 
-        _streamSwapContext.host = host;
-        _streamSwapContext.cfa = cfa;
+        poolId = vault.registerPool(IVault.PoolSpecialization.GENERAL);
 
-        _streamSwapContext.initialize();
+        streamSwapContext.vault = vault;
+        streamSwapContext.host = host;
+        streamSwapContext.cfa = cfa;
 
-        // balancer construct
-        _controller = msg.sender;
-        _factory = msg.sender;
-        _swapFee = MIN_FEE;
-        _publicSwap = false;
-        _finalized = false;
+        streamSwapContext.initialize();
+
+        for (uint i = 0;i < assetManagers.length;i++) {
+            streamSwapContext.addAssetManager(assetManagers[i]);
+        }
     }
 
     modifier onlyHost() {
-        require(msg.sender == address(_streamSwapContext.host), "ERR HOST ONLY");
+        require(msg.sender == address(streamSwapContext.host), "ERR_HOST_ONLY");
         _;
     }
 
-    /**************************************************************************
-     * SuperApp callbacks
-     *************************************************************************/
-
-    function afterAgreementCreated(
-        ISuperToken _superToken,
-        address, // _agreementClass,
-        bytes32, // _agreementId,
-        bytes calldata /*_agreementData*/,
-        bytes calldata ,// _cbdata,
-        bytes calldata _ctx
-    )
-        external override
-        onlyHost
-        returns (bytes memory newCtx)
-    {
-        console.log("agreement create");
-        newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
+    modifier onlyAssetManagers() {
+        require(streamSwapContext.managers[msg.sender], "ERR_NOT_ASSET_MANAGER");
+        _;
     }
 
-    function afterAgreementUpdated(
-        ISuperToken _superToken,
-        address _agreementClass,
-        bytes32 ,//_agreementId,
-        bytes calldata , //_agreementData,
-        bytes calldata ,//_cbdata,
-        bytes calldata _ctx
-    )
-        external override
-        onlyHost
-        returns (bytes memory newCtx)
-    {
-        console.log("agreement update");
-        newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
-    }
+    // called to registerTokens
+    function finalize() public onlyHost {
+        IERC20[] memory tokens = new IERC20[](streamSwapContext.assetManagers.length);
 
-    function afterAgreementTerminated(
-        ISuperToken _superToken,
-        address _agreementClass,
-        bytes32 ,//_agreementId,
-        bytes calldata /*_agreementData*/,
-        bytes calldata ,//_cbdata,
-        bytes calldata _ctx
-    )
-        external override
-        onlyHost
-        returns (bytes memory newCtx)
-    {
-        console.log("agreement term");
-        newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
-    }
-
-    /**************************************************************************
-     * Balancer Pool
-     *************************************************************************/
-
-    function isPublicSwap()
-        external view
-        returns (bool)
-    {
-        return _publicSwap;
-    }
-
-    function isFinalized()
-        external view
-        returns (bool)
-    {
-        return _finalized;
-    }
-
-    function isBound(address t)
-        external view
-        returns (bool)
-    {
-        return _records[t].bound;
-    }
-
-    function getNumTokens()
-        external view
-        returns (uint) 
-    {
-        return _superTokens.length;
-    }
-
-    function getCurrentTokens()
-        external view _viewlock_
-        returns (address[] memory tokens)
-    {
-        return _superTokens;
-    }
-
-    function getFinalTokens()
-        external view
-        _viewlock_
-        returns (address[] memory tokens)
-    {
-        require(_finalized, "ERR_NOT_FINALIZED");
-        return _superTokens;
-    }
-
-    function getDenormalizedWeight(address token)
-        external view
-        _viewlock_
-        returns (uint)
-    {
-
-        require(_records[token].bound, "ERR_NOT_BOUND");
-        return _records[token].denorm;
-    }
-
-    function getTotalDenormalizedWeight()
-        external view
-        _viewlock_
-        returns (uint)
-    {
-        return _totalWeight;
-    }
-
-    function getNormalizedWeight(address token)
-        external view
-        _viewlock_
-        returns (uint)
-    {
-
-        require(_records[token].bound, "ERR_NOT_BOUND");
-        uint denorm = _records[token].denorm;
-        return StreamSwapLibrary.bdiv(denorm, _totalWeight);
-    }
-
-    function getBalance(address token)
-        external view
-        _viewlock_
-        returns (uint)
-    {
-        return getSuperBalance(_underlyingToSuperToken[token]);
-    }
-
-    function getSuperBalance(address token)
-        internal view
-        returns (uint)
-    {
-        require(_records[token].bound, "ERR_NOT_BOUND");
-
-        // call balanceOf is safe here because it can only be called on a SuperToken
-        return IERC20(token).balanceOf(address(this));
-    }
-
-    function getSwapFee()
-        external view
-        _viewlock_
-        returns (uint)
-    {
-        return _swapFee;
-    }
-
-    function getController()
-        external view
-        _viewlock_
-        returns (address)
-    {
-        return _controller;
-    }
-
-    function setSwapFee(uint swapFee)
-        external
-        _logs_
-        _lock_
-    { 
-        require(!_finalized, "ERR_IS_FINALIZED");
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        require(swapFee >= MIN_FEE, "ERR_MIN_FEE");
-        require(swapFee <= MAX_FEE, "ERR_MAX_FEE");
-        _swapFee = swapFee;
-    }
-
-    function setController(address manager)
-        external
-        _logs_
-        _lock_
-    {
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        _controller = manager;
-    }
-
-    function setPublicSwap(bool public_)
-        external
-        _logs_
-        _lock_
-    {
-        require(!_finalized, "ERR_IS_FINALIZED");
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        _publicSwap = public_;
-    }
-
-    function finalize()
-        external
-        _logs_
-        _lock_
-    {
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        require(!_finalized, "ERR_IS_FINALIZED");
-        require(_superTokens.length >= MIN_BOUND_TOKENS, "ERR_MIN_TOKENS");
-
-        _finalized = true;
-        _publicSwap = true;
-
-        _mintPoolShare(INIT_POOL_SUPPLY);
-        _pushPoolShare(msg.sender, INIT_POOL_SUPPLY);
-    }
-
-
-    function bind(address token, uint balance, uint denorm)
-        external
-        _logs_
-        // _lock_  Bind does not lock because it jumps to `rebind`, which does
-    {
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        require(!_records[token].bound, "ERR_IS_BOUND");
-        require(!_finalized, "ERR_IS_FINALIZED");
-
-        require(_superTokens.length < MAX_BOUND_TOKENS, "ERR_MAX_TOKENS");
-
-        require(address(_streamSwapContext.host) == ISuperToken(token).getHost(), "ERR_BAD_HOST");
-
-        _records[token] = StreamSwapLibrary.Record({
-            bound: true,
-            index: _superTokens.length,
-            denorm: 0,    // denorm will be validated
-            balance: 0
-        });
-        _superTokens.push(token);
-        _underlyingToSuperToken[ISuperToken(token).getUnderlyingToken()] = token;
-        IERC20(ISuperToken(token).getUnderlyingToken()).approve(token, type(uint).max);
-
-        emit LOG_BIND_NEW(token);
-
-        rebind(token, balance, denorm);
-    }
-
-    function rebind(address token, uint balance, uint denorm)
-        public
-        _logs_
-        _lock_
-    {
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        require(_records[token].bound, "ERR_NOT_BOUND");
-        require(!_finalized, "ERR_IS_FINALIZED");
-
-        require(denorm >= MIN_WEIGHT, "ERR_MIN_WEIGHT");
-        require(denorm <= MAX_WEIGHT, "ERR_MAX_WEIGHT");
-
-        StreamSwapLibrary.Record memory oldRecord = _records[token];
-
-        // Adjust the denorm and totalWeight
-        uint oldWeight = _records[token].denorm;
-        if (denorm > oldWeight) {
-            _totalWeight = StreamSwapLibrary.badd(_totalWeight, StreamSwapLibrary.bsub(denorm, oldWeight));
-            require(_totalWeight <= MAX_TOTAL_WEIGHT, "ERR_MAX_TOTAL_WEIGHT");
-        } else if (denorm < oldWeight) {
-            _totalWeight = StreamSwapLibrary.bsub(_totalWeight, StreamSwapLibrary.bsub(oldWeight, denorm));
-        }        
-        _records[token].denorm = denorm;
-
-        // Adjust the balance record and actual token balance
-        uint oldBalance = getSuperBalance(token);
-        _records[token].balance = balance;
-        if (balance > oldBalance) {
-            _pullUnderlying(token, msg.sender, StreamSwapLibrary.bsub(balance, oldBalance));
-            emit LOG_JOIN(msg.sender, token, StreamSwapLibrary.bsub(balance, oldBalance));
-        } else if (balance < oldBalance) {
-            // In this case liquidity is being withdrawn, so charge EXIT_FEE
-            uint tokenBalanceWithdrawn = StreamSwapLibrary.bsub(oldBalance, balance);
-            uint tokenExitFee = StreamSwapLibrary.bmul(tokenBalanceWithdrawn, EXIT_FEE);
-            _pushUnderlying(token, msg.sender, StreamSwapLibrary.bsub(tokenBalanceWithdrawn, tokenExitFee));
-            _pushUnderlying(token, _factory, tokenExitFee);
-            emit LOG_EXIT(msg.sender, token, tokenBalanceWithdrawn);
+        for (uint i = 0;i < streamSwapContext.assetManagers.length;i++) {
+            tokens[i] = streamSwapContext.assetManagers[i].getToken();
         }
 
-        _streamSwapContext.updateFlowRates(token, _records, oldRecord);
+        streamSwapContext.vault.registerTokens(poolId, tokens, streamSwapContext.assetManagers);
     }
 
-    function unbind(address token)
-        external
-        _logs_
-        _lock_
-    {
-
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        require(_records[token].bound, "ERR_NOT_BOUND");
-        require(!_finalized, "ERR_IS_FINALIZED");
-
-        uint tokenBalance = getSuperBalance(token);
-        uint tokenExitFee = StreamSwapLibrary.bmul(tokenBalance, EXIT_FEE);
-
-        _totalWeight = StreamSwapLibrary.bsub(_totalWeight, _records[token].denorm);
-
-        // Swap the token-to-unbind with the last token,
-        // then delete the last token
-        uint index = _records[token].index;
-        uint last = _superTokens.length - 1;
-        _superTokens[index] = _superTokens[last];
-        _records[_superTokens[index]].index = index;
-        _superTokens.pop();
-        _records[token] = StreamSwapLibrary.Record({
-            bound: false,
-            index: 0,
-            denorm: 0,
-            balance: 0
-        });
-
-        // todo: wipe streams
-
-        IERC20(ISuperToken(token).getUnderlyingToken()).approve(token, 0);
-
-        _pushUnderlying(token, msg.sender, StreamSwapLibrary.bsub(tokenBalance, tokenExitFee));
-        _pushUnderlying(token, _factory, tokenExitFee);
+    function makeTrade(
+        ISuperToken superToken, bytes memory newSfCtx
+    ) external onlyAssetManagers
+        returns (bytes memory newCtx) {
+        newCtx = streamSwapContext.makeTrade(superToken, newSfCtx);
     }
 
-    function getSpotPrice(address tokenIn, address tokenOut)
-        external view
-        _viewlock_
-        returns (uint spotPrice)
-    {
-        address superTokenIn = _underlyingToSuperToken[tokenIn];
-        address superTokenOut = _underlyingToSuperToken[tokenOut];
+    /** Balancer V2 */
 
-        require(_records[superTokenIn].bound, "ERR_NOT_BOUND");
-        require(_records[superTokenOut].bound, "ERR_NOT_BOUND");
-        StreamSwapLibrary.Record storage inRecord = _records[superTokenIn];
-        StreamSwapLibrary.Record storage outRecord = _records[superTokenOut];
-        return StreamSwapLibrary.calcSpotPrice(getSuperBalance(superTokenIn), inRecord.denorm, getSuperBalance(superTokenOut), outRecord.denorm, _swapFee);
+    function _validateIndexes(
+        uint256 indexIn,
+        uint256 indexOut,
+        uint256 limit
+    ) private pure {
+        require(indexIn < limit && indexOut < limit, "ERR_OUT_OF_BOUNDS");
     }
 
-    function getSpotPriceSansFee(address tokenIn, address tokenOut)
-        external view
-        _viewlock_
-        returns (uint spotPrice)
-    {
-        address superTokenIn = _underlyingToSuperToken[tokenIn];
-        address superTokenOut = _underlyingToSuperToken[tokenOut];
+    function onSwap(
+        SwapRequest memory swapRequest,
+        uint256[] memory balances,
+        uint256 indexIn,
+        uint256 indexOut
+    ) external virtual override returns (uint256 amount) {
 
-        require(_records[superTokenIn].bound, "ERR_NOT_BOUND");
-        require(_records[superTokenOut].bound, "ERR_NOT_BOUND");
-        StreamSwapLibrary.Record storage inRecord = _records[superTokenIn];
-        StreamSwapLibrary.Record storage outRecord = _records[superTokenOut];
-        return StreamSwapLibrary.calcSpotPrice(getSuperBalance(superTokenIn), inRecord.denorm, getSuperBalance(superTokenOut), outRecord.denorm, 0);
+        require(msg.sender == address(streamSwapContext.vault), "ERR_NOT_VAULT");
+
+        streamSwapContext.updateFlowRates(streamSwapContext.tokens[indexIn], streamSwapContext.tokens[indexOut], StreamSwapLibrary.Record(
+            0,0,
+            streamSwapContext.records[].denorm,
+            streamSwapContext.records[].balance + 
+                (swapRequest.kind == IVault.SwapKind.GIVEN_IN ? swapRequest.amount : StreamSwapLibrary.getAmountOut(swapRequest.amount, balances[indexIn], balances[indexOut]))
+        ));
+        streamSwapContext.updateFlowRates(streamSwapContext.tokens[indexIn], streamSwapContext.tokens[indexOut], StreamSwapLibrary.Record(
+            0,0,
+            streamSwapContext.records[].denorm,
+            streamSwapContext.records[].balance - 
+                (swapRequest.kind == IVault.SwapKind.GIVEN_IN  ? swapRequest.amount : StreamSwapLibrary.getAmountIn(swapRequest.amount, balances[indexIn], balances[indexOut]))
+        ));
+
+        _validateIndexes(indexIn, indexOut, _getTotalTokens());
+        uint256[] memory scalingFactors = _scalingFactors();
+
+        return
+            swapRequest.kind == IVault.SwapKind.GIVEN_IN
+                ? _swapGivenIn(swapRequest, balances, indexIn, indexOut, scalingFactors)
+                : _swapGivenOut(swapRequest, balances, indexIn, indexOut, scalingFactors);
     }
 
-    function joinPool(uint poolAmountOut, uint[] calldata maxAmountsIn)
-        external
-        _logs_
-        _lock_
-    {
-        require(_finalized, "ERR_NOT_FINALIZED");
+    function _swapGivenIn(
+        SwapRequest memory swapRequest,
+        uint256[] memory balances,
+        uint256 indexIn,
+        uint256 indexOut,
+        uint256[] memory scalingFactors
+    ) internal view returns (uint256) {
+        // Fees are subtracted before scaling, to reduce the complexity of the rounding direction analysis.
+        swapRequest.amount = _subtractSwapFeeAmount(swapRequest.amount);
 
-        uint poolTotal = totalSupply();
-        uint ratio = StreamSwapLibrary.bdiv(poolAmountOut, poolTotal);
-        require(ratio != 0, "ERR_MATH_APPROX");
+        _upscaleArray(balances, scalingFactors);
+        swapRequest.amount = _upscale(swapRequest.amount, scalingFactors[indexIn]);
 
-        for (uint i = 0; i < _superTokens.length; i++) {
-            address t = _superTokens[i];
-            StreamSwapLibrary.Record memory oldRecord = _records[t];
-            uint bal = getSuperBalance(t);
-            uint tokenAmountIn = StreamSwapLibrary.bmul(ratio, bal);
-            require(tokenAmountIn != 0, "ERR_MATH_APPROX");
-            require(tokenAmountIn <= maxAmountsIn[i], "ERR_LIMIT_IN");
-            _records[t].balance = StreamSwapLibrary.badd(bal, tokenAmountIn);
-            emit LOG_JOIN(msg.sender, t, tokenAmountIn);
-            _pullUnderlying(t, msg.sender, tokenAmountIn);
-            _streamSwapContext.updateFlowRates(t, _records, oldRecord);
-        }
-        _mintPoolShare(poolAmountOut);
-        _pushPoolShare(msg.sender, poolAmountOut);
+        uint256 amountOut = _onSwapGivenIn(swapRequest, balances, indexIn, indexOut);
+
+        // amountOut tokens are exiting the Pool, so we round down.
+        return _downscaleDown(amountOut, scalingFactors[indexOut]);
     }
 
-    function exitPool(uint poolAmountIn, uint[] calldata minAmountsOut)
-        external
-        _logs_
-        _lock_
-    {
-        require(_finalized, "ERR_NOT_FINALIZED");
+    function _swapGivenOut(
+        SwapRequest memory swapRequest,
+        uint256[] memory balances,
+        uint256 indexIn,
+        uint256 indexOut,
+        uint256[] memory scalingFactors
+    ) internal view returns (uint256) {
+        _upscaleArray(balances, scalingFactors);
+        swapRequest.amount = _upscale(swapRequest.amount, scalingFactors[indexOut]);
 
-        uint poolTotal = totalSupply();
-        uint exitFee = StreamSwapLibrary.bmul(poolAmountIn, EXIT_FEE);
-        uint pAiAfterExitFee = StreamSwapLibrary.bsub(poolAmountIn, exitFee);
-        uint ratio = StreamSwapLibrary.bdiv(pAiAfterExitFee, poolTotal);
-        require(ratio != 0, "ERR_MATH_APPROX");
+        uint256 amountIn = _onSwapGivenOut(swapRequest, balances, indexIn, indexOut);
 
-        _pullPoolShare(msg.sender, poolAmountIn);
-        _pushPoolShare(_factory, exitFee);
-        _burnPoolShare(pAiAfterExitFee);
+        // amountIn tokens are entering the Pool, so we round up.
+        amountIn = _downscaleUp(amountIn, scalingFactors[indexIn]);
 
-        for (uint i = 0; i < _superTokens.length; i++) {
-            address t = _superTokens[i];
-            StreamSwapLibrary.Record memory oldRecord = _records[t];
-            uint bal = getSuperBalance(t);
-            uint tokenAmountOut = StreamSwapLibrary.bmul(ratio, bal);
-            require(tokenAmountOut != 0, "ERR_MATH_APPROX");
-            require(tokenAmountOut >= minAmountsOut[i], "ERR_LIMIT_OUT");
-            _records[t].balance = StreamSwapLibrary.bsub(bal, tokenAmountOut);
-            emit LOG_EXIT(msg.sender, t, tokenAmountOut);
-            _pushUnderlying(t, msg.sender, tokenAmountOut);
-            _streamSwapContext.updateFlowRates(t, _records, oldRecord);
-        }
-
+        // Fees are added after scaling happens, to reduce the complexity of the rounding direction analysis.
+        return _addSwapFeeAmount(amountIn);
     }
 
+    function _onSwapGivenIn(
+        SwapRequest memory swapRequest,
+        uint256[] memory balances,
+        uint256 indexIn,
+        uint256 indexOut
+    ) internal view virtual returns (uint256) {
+        return StreamSwapLibrary.getAmountOut(swapRequest.amount, balances[indexIn], balances[indexOut]);
+    }
 
-    function swapExactAmountIn(
-        address tokenIn,
-        uint tokenAmountIn,
-        address tokenOut,
-        uint minAmountOut,
-        uint maxPrice
+    function _onSwapGivenOut(
+        SwapRequest memory swapRequest,
+        uint256[] memory balances,
+        uint256 indexIn,
+        uint256 indexOut
+    ) internal view virtual returns (uint256) {
+        return StreamSwapLibrary.getAmountIn(swapRequest.amount, balances[indexIn], balances[indexOut]);
+    }
+
+    function _onInitializePool(
+        bytes32,
+        address,
+        address,
+        bytes memory userData
+    ) internal virtual override whenNotPaused returns (uint256, uint256[] memory) {
+        uint256[] memory amountsIn = userData.initialAmountsIn();
+        return (100, amountsIn);
+    }
+
+    function _getAmplificationParameter() public view returns (uint) {
+        return 10**18;
+    }
+
+    function _onJoinPool(
+        bytes32,
+        address,
+        address,
+        uint256[] memory balances,
+        uint256,
+        uint256 protocolSwapFeePercentage,
+        //uint256[] memory scalingFactors,
+        bytes memory userData
     )
-        external
-        _logs_
-        _lock_
-        returns (uint tokenAmountOut, uint spotPriceAfter)
+        internal
+        virtual
+        override
+        whenNotPaused
+        returns (
+            uint256,
+            uint256[] memory,
+            uint256[] memory
+        )
     {
-        SuperTokenVarsHelper memory si = SuperTokenVarsHelper(
-            _underlyingToSuperToken[tokenIn],
-            _underlyingToSuperToken[tokenOut],
-            0,
-            0
+        (uint256 bptAmountOut, uint256[] memory amountsIn) = _doJoin(balances, /*scalingFactors, */userData);
+        return (bptAmountOut, amountsIn, 0);
+    }
+
+    function _doJoin(
+        uint256[] memory balances,
+        bytes memory userData
+    ) private view returns (uint256, uint256[] memory) {
+        JoinKind kind = userData.joinKind();
+
+        /*if (kind == JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT) {
+            return _joinExactTokensInForBPTOut(balances, scalingFactors, userData);
+        } else*/ if (kind == JoinKind.TOKEN_IN_FOR_EXACT_BPT_OUT) {
+            return _joinTokenInForExactBPTOut(balances, userData);
+        } else {
+            revert("UNHANDLED_JOIN_KIND");
+        }
+    }
+
+    function _joinExactTokensInForBPTOut(
+        uint256[] memory balances,
+        uint256[] memory scalingFactors,
+        bytes memory userData
+    ) private view returns (uint256, uint256[] memory) {
+        (uint256[] memory amountsIn, uint256 minBPTAmountOut) = userData.exactTokensInForBptOut();
+        InputHelpers.ensureInputLengthMatch(_getTotalTokens(), amountsIn.length);
+
+        _upscaleArray(amountsIn, scalingFactors);
+
+        (uint256 currentAmp, ) = _getAmplificationParameter();
+        uint256 bptAmountOut = StableMath._calcBptOutGivenExactTokensIn(
+            currentAmp,
+            balances,
+            amountsIn,
+            totalSupply(),
+            this.getSwapFeePercentage()
         );
 
-        require(_records[si.tokenIn].bound, "ERR_NOT_BOUND");
-        require(_records[si.tokenOut].bound, "ERR_NOT_BOUND");
-        require(_publicSwap, "ERR_SWAP_NOT_PUBLIC");
+        _require(bptAmountOut >= minBPTAmountOut, Errors.BPT_OUT_MIN_AMOUNT);
 
-        StreamSwapLibrary.Record storage inRecord = _records[address(si.tokenIn)];
-        StreamSwapLibrary.Record storage outRecord = _records[address(si.tokenOut)];
-
-        si.tokenInBalance = getSuperBalance(si.tokenIn);
-        si.tokenOutBalance = getSuperBalance(si.tokenOut);
-
-        require(tokenAmountIn <= StreamSwapLibrary.bmul(si.tokenInBalance, MAX_IN_RATIO), "ERR_MAX_IN_RATIO");
-
-        uint spotPriceBefore = StreamSwapLibrary.calcSpotPrice(
-                                    si.tokenInBalance,
-                                    inRecord.denorm,
-                                    si.tokenOutBalance,
-                                    outRecord.denorm,
-                                    _swapFee
-                                );
-        require(spotPriceBefore <= maxPrice, "ERR_BAD_LIMIT_PRICE");
-
-        tokenAmountOut = StreamSwapLibrary.calcOutGivenIn(
-                            si.tokenInBalance,
-                            inRecord.denorm,
-                            si.tokenOutBalance,
-                            outRecord.denorm,
-                            tokenAmountIn,
-                            _swapFee
-                        );
-        require(tokenAmountOut >= minAmountOut, "ERR_LIMIT_OUT");
-
-        spotPriceAfter = StreamSwapLibrary.calcSpotPrice(
-                                StreamSwapLibrary.badd(si.tokenInBalance, tokenAmountIn),
-                                inRecord.denorm,
-                                StreamSwapLibrary.bsub(si.tokenOutBalance, tokenAmountOut),
-                                outRecord.denorm,
-                                _swapFee
-                            );
-        require(spotPriceAfter >= spotPriceBefore, "ERR_MATH_APPROX");     
-        require(spotPriceAfter <= maxPrice, "ERR_LIMIT_PRICE");
-        require(spotPriceBefore <= StreamSwapLibrary.bdiv(tokenAmountIn, tokenAmountOut), "ERR_MATH_APPROX");
-
-        emit LOG_SWAP(msg.sender, tokenIn, tokenOut, tokenAmountIn, tokenAmountOut);
-
-        StreamSwapLibrary.Record memory oldInRecord = inRecord;
-        inRecord.balance = StreamSwapLibrary.badd(si.tokenInBalance, tokenAmountIn);
-        _pullUnderlying(si.tokenIn, msg.sender, tokenAmountIn);
-        _streamSwapContext.updateFlowRates(si.tokenIn, _records, oldInRecord);
-
-        StreamSwapLibrary.Record memory oldOutRecord = outRecord;
-        outRecord.balance = StreamSwapLibrary.bsub(si.tokenOutBalance, tokenAmountOut);
-        _pushUnderlying(si.tokenOut, msg.sender, tokenAmountOut);
-        _streamSwapContext.updateFlowRates(si.tokenOut, _records, oldOutRecord);
-
-        return (tokenAmountOut, spotPriceAfter);
+        return (bptAmountOut, amountsIn);
     }
 
-    function swapExactAmountOut(
-        address tokenIn,
-        uint maxAmountIn,
-        address tokenOut,
-        uint tokenAmountOut,
-        uint maxPrice
-    )
-        external
-        _logs_
-        _lock_ 
-        returns (uint tokenAmountIn, uint spotPriceAfter)
+    function _joinTokenInForExactBPTOut(uint256[] memory balances, bytes memory userData)
+        private
+        view
+        returns (uint256, uint256[] memory)
     {
-        SuperTokenVarsHelper memory si = SuperTokenVarsHelper(
-            _underlyingToSuperToken[tokenIn],
-            _underlyingToSuperToken[tokenOut],
-            0,
-            0
+        (uint256 bptAmountOut, uint256 tokenIndex) = userData.tokenInForExactBptOut();
+        // Note that there is no maximum amountIn parameter: this is handled by `IVault.joinPool`.
+
+        _require(tokenIndex < _getTotalTokens(), Errors.OUT_OF_BOUNDS);
+
+        uint256[] memory amountsIn = new uint256[](_getTotalTokens());
+        (uint256 currentAmp, ) = _getAmplificationParameter();
+        amountsIn[tokenIndex] = StableMath._calcTokenInGivenExactBptOut(
+            currentAmp,
+            balances,
+            tokenIndex,
+            bptAmountOut,
+            totalSupply(),
+            this.getSwapFeePercentage()
         );
 
-        require(_records[si.tokenIn].bound, "ERR_NOT_BOUND");
-        require(_records[si.tokenOut].bound, "ERR_NOT_BOUND");
-        require(_publicSwap, "ERR_SWAP_NOT_PUBLIC");
-
-        StreamSwapLibrary.Record storage inRecord = _records[address(si.tokenIn)];
-        StreamSwapLibrary.Record storage outRecord = _records[address(si.tokenOut)];
-
-        si.tokenInBalance = getSuperBalance(si.tokenIn);
-        si.tokenOutBalance = getSuperBalance(si.tokenOut);
-
-        require(tokenAmountOut <= StreamSwapLibrary.bmul(si.tokenOutBalance, MAX_OUT_RATIO), "ERR_MAX_OUT_RATIO");
-
-        uint spotPriceBefore = StreamSwapLibrary.calcSpotPrice(
-                                    si.tokenInBalance,
-                                    inRecord.denorm,
-                                    si.tokenOutBalance,
-                                    outRecord.denorm,
-                                    _swapFee
-                                );
-        require(spotPriceBefore <= maxPrice, "ERR_BAD_LIMIT_PRICE");
-
-        tokenAmountIn = StreamSwapLibrary.calcInGivenOut(
-                            si.tokenInBalance,
-                            inRecord.denorm,
-                            si.tokenOutBalance,
-                            outRecord.denorm,
-                            tokenAmountOut,
-                            _swapFee
-                        );
-        require(tokenAmountIn <= maxAmountIn, "ERR_LIMIT_IN");
-
-        spotPriceAfter = StreamSwapLibrary.calcSpotPrice(
-                                StreamSwapLibrary.badd(si.tokenInBalance, tokenAmountIn),
-                                inRecord.denorm,
-                                StreamSwapLibrary.bsub(si.tokenOutBalance, tokenAmountOut),
-                                outRecord.denorm,
-                                _swapFee
-                            );
-        require(spotPriceAfter >= spotPriceBefore, "ERR_MATH_APPROX");
-        require(spotPriceAfter <= maxPrice, "ERR_LIMIT_PRICE");
-        require(spotPriceBefore <= StreamSwapLibrary.bdiv(tokenAmountIn, tokenAmountOut), "ERR_MATH_APPROX");
-
-        emit LOG_SWAP(msg.sender, tokenIn, tokenOut, tokenAmountIn, tokenAmountOut);
-
-        StreamSwapLibrary.Record memory oldInRecord = inRecord;
-        inRecord.balance = StreamSwapLibrary.badd(si.tokenInBalance, tokenAmountIn);
-        _pullUnderlying(si.tokenIn, msg.sender, tokenAmountIn);
-        _streamSwapContext.updateFlowRates(si.tokenIn, _records, oldInRecord);
-
-        StreamSwapLibrary.Record memory oldOutRecord = outRecord;
-        outRecord.balance = StreamSwapLibrary.bsub(si.tokenOutBalance, tokenAmountOut);
-        _pushUnderlying(si.tokenOut, msg.sender, tokenAmountOut);
-        _streamSwapContext.updateFlowRates(si.tokenOut, _records, oldOutRecord);
-
-        return (tokenAmountIn, spotPriceAfter);
+        return (bptAmountOut, amountsIn);
     }
-
-
-    function joinswapExternAmountIn(address tokenIn, uint tokenAmountIn, uint minPoolAmountOut)
-        external
-        _logs_
-        _lock_
-        returns (uint poolAmountOut)
-
-    {
-        address superTokenIn = _underlyingToSuperToken[tokenIn];
-
-        uint tokenInBalance = getSuperBalance(superTokenIn);
-
-        require(_finalized, "ERR_NOT_FINALIZED");
-        require(_records[tokenIn].bound, "ERR_NOT_BOUND");
-        require(tokenAmountIn <= StreamSwapLibrary.bmul(tokenInBalance, MAX_IN_RATIO), "ERR_MAX_IN_RATIO");
-
-        StreamSwapLibrary.Record storage inRecord = _records[superTokenIn];
-
-        poolAmountOut = StreamSwapLibrary.calcPoolOutGivenSingleIn(
-                            tokenInBalance,
-                            inRecord.denorm,
-                            _totalSupply,
-                            _totalWeight,
-                            tokenAmountIn,
-                            _swapFee
-                        );
-
-        require(poolAmountOut >= minPoolAmountOut, "ERR_LIMIT_OUT");
-
-        inRecord.balance = StreamSwapLibrary.badd(tokenInBalance, tokenAmountIn);
-
-        emit LOG_JOIN(msg.sender, tokenIn, tokenAmountIn);
-
-        _mintPoolShare(poolAmountOut);
-        _pushPoolShare(msg.sender, poolAmountOut);
-        _pullUnderlying(superTokenIn, msg.sender, tokenAmountIn);
-
-        _streamSwapContext.updateFlowRates(superTokenIn, _records, StreamSwapLibrary.Record(true, 0, inRecord.denorm, tokenInBalance));
-
-        return poolAmountOut;
-    }
-
-    function joinswapPoolAmountOut(address tokenIn, uint poolAmountOut, uint maxAmountIn)
-        external
-        _logs_
-        _lock_
-        returns (uint tokenAmountIn)
-    {
-        address superTokenIn = _underlyingToSuperToken[tokenIn];
-
-        uint tokenInBalance = getSuperBalance(superTokenIn);
-
-        require(_finalized, "ERR_NOT_FINALIZED");
-        require(_records[superTokenIn].bound, "ERR_NOT_BOUND");
-
-        StreamSwapLibrary.Record storage inRecord = _records[superTokenIn];
-
-        tokenAmountIn = StreamSwapLibrary.calcSingleInGivenPoolOut(
-                            tokenInBalance,
-                            inRecord.denorm,
-                            _totalSupply,
-                            _totalWeight,
-                            poolAmountOut,
-                            _swapFee
-                        );
-
-        require(tokenAmountIn != 0, "ERR_MATH_APPROX");
-        require(tokenAmountIn <= maxAmountIn, "ERR_LIMIT_IN");
-        
-        require(tokenAmountIn <= StreamSwapLibrary.bmul(tokenInBalance, MAX_IN_RATIO), "ERR_MAX_IN_RATIO");
-
-        inRecord.balance = StreamSwapLibrary.badd(tokenInBalance, tokenAmountIn);
-
-        emit LOG_JOIN(msg.sender, tokenIn, tokenAmountIn);
-
-        _mintPoolShare(poolAmountOut);
-        _pushPoolShare(msg.sender, poolAmountOut);
-        _pullUnderlying(superTokenIn, msg.sender, tokenAmountIn);
-
-        _streamSwapContext.updateFlowRates(superTokenIn, _records, StreamSwapLibrary.Record(true, 0, inRecord.denorm, tokenInBalance));
-
-        return tokenAmountIn;
-    }
-
-    function exitswapPoolAmountIn(address tokenOut, uint poolAmountIn, uint minAmountOut)
-        external
-        _logs_
-        _lock_
-        returns (uint tokenAmountOut)
-    {
-        address superTokenOut = _underlyingToSuperToken[tokenOut];
-
-        uint tokenOutBalance = getSuperBalance(superTokenOut);
-
-        require(_finalized, "ERR_NOT_FINALIZED");
-        require(_records[superTokenOut].bound, "ERR_NOT_BOUND");
-
-        StreamSwapLibrary.Record storage outRecord = _records[superTokenOut];
-
-        tokenAmountOut = StreamSwapLibrary.calcSingleOutGivenPoolIn(
-                            tokenOutBalance,
-                            outRecord.denorm,
-                            _totalSupply,
-                            _totalWeight,
-                            poolAmountIn,
-                            _swapFee
-                        );
-
-        require(tokenAmountOut >= minAmountOut, "ERR_LIMIT_OUT");
-        
-        require(tokenAmountOut <= StreamSwapLibrary.bmul(tokenOutBalance, MAX_OUT_RATIO), "ERR_MAX_OUT_RATIO");
-
-        outRecord.balance = StreamSwapLibrary.bsub(tokenOutBalance, tokenAmountOut);
-
-        uint exitFee = StreamSwapLibrary.bmul(poolAmountIn, EXIT_FEE);
-
-        emit LOG_EXIT(msg.sender, tokenOut, tokenAmountOut);
-
-        _pullPoolShare(msg.sender, poolAmountIn);
-        _burnPoolShare(bsub(poolAmountIn, exitFee));
-        _pushPoolShare(_factory, exitFee);
-        _pushUnderlying(superTokenOut, msg.sender, tokenAmountOut);
-
-        _streamSwapContext.updateFlowRates(superTokenOut, _records, StreamSwapLibrary.Record(true, 0, outRecord.denorm, tokenOutBalance));
-
-        return tokenAmountOut;
-    }
-
-    function exitswapExternAmountOut(address tokenOut, uint tokenAmountOut, uint maxPoolAmountIn)
-        external
-        _logs_
-        _lock_
-        returns (uint poolAmountIn)
-    {
-        address superTokenOut = _underlyingToSuperToken[tokenOut];
-
-        uint tokenOutBalance = getSuperBalance(superTokenOut);
-
-        require(_finalized, "ERR_NOT_FINALIZED");
-        require(_records[tokenOut].bound, "ERR_NOT_BOUND");
-        require(tokenAmountOut <= StreamSwapLibrary.bmul(tokenOutBalance, MAX_OUT_RATIO), "ERR_MAX_OUT_RATIO");
-
-        StreamSwapLibrary.Record storage outRecord = _records[superTokenOut];
-
-        poolAmountIn = StreamSwapLibrary.calcPoolInGivenSingleOut(
-                            tokenOutBalance,
-                            outRecord.denorm,
-                            _totalSupply,
-                            _totalWeight,
-                            tokenAmountOut,
-                            _swapFee
-                        );
-
-        require(poolAmountIn != 0, "ERR_MATH_APPROX");
-        require(poolAmountIn <= maxPoolAmountIn, "ERR_LIMIT_IN");
-
-        outRecord.balance = StreamSwapLibrary.bsub(tokenOutBalance, tokenAmountOut);
-
-        uint exitFee = StreamSwapLibrary.bmul(poolAmountIn, EXIT_FEE);
-
-        emit LOG_EXIT(msg.sender, tokenOut, tokenAmountOut);
-
-        _pullPoolShare(msg.sender, poolAmountIn);
-        _burnPoolShare(bsub(poolAmountIn, exitFee));
-        _pushPoolShare(_factory, exitFee);
-        _pushUnderlying(superTokenOut, msg.sender, tokenAmountOut);
-
-        _streamSwapContext.updateFlowRates(superTokenOut, _records, StreamSwapLibrary.Record(true, 0, outRecord.denorm, tokenOutBalance));
-
-        return poolAmountIn;
-    }
-
-
-    // ==
-    // 'Underlying' token-manipulation functions make external calls but are NOT locked
-    // You must `_lock_` or otherwise ensure reentry-safety
-
-    function _pullUnderlying(address superErc20, address from, uint amount)
+    function _onExitPool(
+        bytes32,
+        address,
+        address,
+        uint256[] memory balances,
+        uint256,
+        uint256 protocolSwapFeePercentage,
+        bytes memory userData
+    )
         internal
+        virtual
+        override
+        returns (
+            uint256 bptAmountIn,
+            uint256[] memory amountsOut,
+            uint256[] memory dueProtocolFeeAmounts
+        )
     {
-        console.log("pull", superErc20, amount);
-        IERC20 erc20 = IERC20(ISuperToken(superErc20).getUnderlyingToken());
-        bool xfer = erc20.transferFrom(from, address(this), amount);
-        require(xfer, "ERR_ERC20_FALSE");
-        ISuperToken(superErc20).upgrade(amount);
+        // Exits are not completely disabled while the contract is paused: proportional exits (exact BPT in for tokens
+        // out) remain functional.
+
+        (bptAmountIn, amountsOut) = _doExit(balances, /*scalingFactors, */userData);
+        return (bptAmountIn, amountsOut, 0);
     }
 
-    function _pushUnderlying(address superErc20, address to, uint amount)
-        internal
-    {
-        console.log("push", superErc20, amount);
-        ISuperToken(superErc20).downgrade(amount);
-        IERC20 erc20 = IERC20(ISuperToken(superErc20).getUnderlyingToken());
-        bool xfer = IERC20(erc20).transfer(to, amount);
-        require(xfer, "ERR_ERC20_FALSE");
+    function _doExit(
+        uint256[] memory balances,
+        bytes memory userData
+    ) private view returns (uint256, uint256[] memory) {
+        ExitKind kind = userData.exitKind();
+
+        if (kind == ExitKind.EXACT_BPT_IN_FOR_ONE_TOKEN_OUT) {
+            return _exitExactBPTInForTokenOut(balances, userData);
+        } else {// if (kind == ExitKind.EXACT_BPT_IN_FOR_TOKENS_OUT) {
+            return _exitExactBPTInForTokensOut(balances, userData);
+        }/* else {
+            // ExitKind.BPT_IN_FOR_EXACT_TOKENS_OUT
+            return _exitBPTInForExactTokensOut(balances, scalingFactors, userData);
+        }*/
     }
 
-    function _pullPoolShare(address from, uint amount)
-        internal
+    function _exitExactBPTInForTokenOut(uint256[] memory balances, bytes memory userData)
+        private
+        view
+        whenNotPaused
+        returns (uint256, uint256[] memory)
     {
-        _pull(from, amount);
+        // This exit function is disabled if the contract is paused.
+
+        (uint256 bptAmountIn, uint256 tokenIndex) = userData.exactBptInForTokenOut();
+        // Note that there is no minimum amountOut parameter: this is handled by `IVault.exitPool`.
+
+        _require(tokenIndex < _getTotalTokens(), Errors.OUT_OF_BOUNDS);
+
+        // We exit in a single token, so initialize amountsOut with zeros
+        uint256[] memory amountsOut = new uint256[](_getTotalTokens());
+
+        // And then assign the result to the selected token
+        (uint256 currentAmp, ) = _getAmplificationParameter();
+        amountsOut[tokenIndex] = StableMath._calcTokenOutGivenExactBptIn(
+            currentAmp,
+            balances,
+            tokenIndex,
+            bptAmountIn,
+            totalSupply(),
+            this.getSwapFeePercentage()
+        );
+
+        return (bptAmountIn, amountsOut);
     }
 
-    function _pushPoolShare(address to, uint amount)
-        internal
+    function _exitExactBPTInForTokensOut(uint256[] memory balances, bytes memory userData)
+        private
+        view
+        returns (uint256, uint256[] memory)
     {
-        _push(to, amount);
-    }
+        // This exit function is the only one that is not disabled if the contract is paused: it remains unrestricted
+        // in an attempt to provide users with a mechanism to retrieve their tokens in case of an emergency.
+        // This particular exit function is the only one that remains available because it is the simplest one, and
+        // therefore the one with the lowest likelihood of errors.
 
-    function _mintPoolShare(uint amount)
-        internal
-    {
-        _mint(amount);
-    }
+        uint256 bptAmountIn = userData.exactBptInForTokensOut();
+        // Note that there is no minimum amountOut parameter: this is handled by `IVault.exitPool`.
 
-    function _burnPoolShare(uint amount)
-        internal
-    {
-        _burn(amount);
+        uint256[] memory amountsOut = StableMath._calcTokensOutGivenExactBptIn(balances, bptAmountIn, totalSupply());
+        return (bptAmountIn, amountsOut);
     }
-
 }
