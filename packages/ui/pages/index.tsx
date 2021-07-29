@@ -2,13 +2,13 @@ import MainLayout from '../components/MainLayout';
 import Grid from '@material-ui/core/Grid';
 import T from '@material-ui/core/Typography';
 import { useQuery } from '@apollo/client';
-import { Balance, CLIENT, ContinuousSwap, User, USER_INFO } from '../queries/streamswap';
+import { Balance, CLIENT, ContinuousSwap, User, USER_INFO } from '../queries/<my project>';
 
 import BalanceCard from '../components/BalanceCard';
 import ContinuousSwapCard from '../components/ContinuousSwapCard';
 import { useWeb3React } from '@web3-react/core';
 import Wei from '@synthetixio/wei';
-import { StreamSwapArgs } from '../utils/encodeStreamSwapData';
+import { <my project>Args } from '../utils/encode<my project>Data';
 import constructFlow from '../utils/flow-constructor';
 import { useEffect } from 'react';
 import Link from 'next/link';
@@ -43,7 +43,7 @@ const Home = () => {
 
     matchingSwaps.splice(matchingSwaps.findIndex(cs => cs.tokenOut.id == cancelledSwap.tokenOut.id), 1);
 
-    const args: StreamSwapArgs[] = matchingSwaps.map((d) => {
+    const args: <my project>Args[] = matchingSwaps.map((d) => {
       return {
         destSuperToken: d.tokenOut.id,
         inAmount: new Wei(d.rateIn),

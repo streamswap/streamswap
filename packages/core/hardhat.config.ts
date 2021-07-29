@@ -36,9 +36,6 @@ const hhConfig: HardhatUserConfig = {
   networks: {
     hardhat: {
       chainId: 1337,
-      accounts: {
-        mnemonic: process.env['MNEMONIC'] ||'enrich genius online man glue impact narrow exact veteran real fiction affair'
-      },
       deploy: process.env['ETH_RPC'] ? [
         'deploy/common',
         'deploy/goerli'
@@ -79,9 +76,6 @@ const hhConfig: HardhatUserConfig = {
             runs: 200,
           },
         }
-      },
-      {
-        version: "0.5.12"
       }
     ],
     settings: {

@@ -1,4 +1,4 @@
-Streamswap Core
+<my project> Core
 ====
 
 This package contains the smart contracts, tests, and deployment utilities for the core protocol.
@@ -7,10 +7,7 @@ This package contains the smart contracts, tests, and deployment utilities for t
 
 | Contract Name              | Description |
 |----------------------------|-------------|
-| StreamSwapFactory          | Analogous to `BFactory`. deploys `StreamSwapPool` |
-| StreamSwapFactoryHelper    | Division of `StreamSwapPool` code so that the factory can be deployed |
-| StreamSwapPool             | Analogous to `BPool`. Maintains a pool of Super Tokens, receives Super App calls, exposes Balancer ABI |
-| StreamSwapLibrary          | Contains majority of StreamSwap core logic, including flow routing, balancer math, and storage management |
+| TestToken                    | Plain ERC-20 Token |
 
 ## Building and Usage
 
@@ -23,7 +20,7 @@ npx hardhat node &
 npx hardhat deploy
 ```
 
-The deployment includes Superfluid, Custom Flow Agreement, 3 tests tokens, Streamswap factory, and a testing Streamswap pool preloaded with the 3 test tokens.
+The deployment includes Superfluid, Custom Flow Agreement, 3 tests tokens, <my project> factory, and a testing <my project> pool preloaded with the 3 test tokens.
 
 ## Deplyoment
 

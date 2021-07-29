@@ -14,7 +14,7 @@ const MainLayout = (args: { children: JSX.Element | JSX.Element[]; title?: strin
   return (
     <div className={styles.container}>
       <Head>
-        <title>Streamswap{args.title ? ` - ${args.title}` : ''}</title>
+        <title><my project>{args.title ? ` - ${args.title}` : ''}</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <Grid container>
@@ -22,7 +22,7 @@ const MainLayout = (args: { children: JSX.Element | JSX.Element[]; title?: strin
       </Grid>
       <Divider />
       <T className={styles.title} variant="h1">
-        Streamswap
+        <my project>
       </T>
       <T className={styles.description} variant="subtitle1" component="p">
         Continuous exchange of{' '}

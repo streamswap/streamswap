@@ -1,5 +1,5 @@
 {
-  "name": "@streamswap/exchange",
+  "name": "@<my project>/exchange",
   "version": "0.0.1",
   "private": true,
   "description": "Stream swap exchange",
@@ -65,7 +65,7 @@
   "dependencies": {
     "@material-ui/core": "^4.11.4",
     "@material-ui/lab": "^4.0.0-alpha.58",
-    "@streamswap/core": "0.0.1",
+    "@<my project>/core": "0.0.1",
     "@superfluid-finance/js-sdk": "^0.4.3",
     "ethers": "^5.3.1",
     "next": "11.0.0",

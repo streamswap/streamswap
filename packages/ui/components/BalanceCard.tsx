@@ -4,7 +4,7 @@ import T from '@material-ui/core/Typography';
 import Wei from '@synthetixio/wei';
 import React from 'react';
 import { useState } from 'react';
-import { Balance } from '../queries/streamswap';
+import { Balance } from '../queries/<my project>';
 
 export interface BalanceCardProps {
     balance: Balance

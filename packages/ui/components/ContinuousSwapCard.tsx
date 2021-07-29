@@ -1,5 +1,5 @@
 import { Card, IconButton, CardActions, CardContent, Grid } from '@material-ui/core';
-import { ContinuousSwap } from '../queries/streamswap';
+import { ContinuousSwap } from '../queries/<my project>';
 import T from '@material-ui/core/Typography';
 
 import EditIcon from '@material-ui/icons/Edit';
