@@ -33,17 +33,19 @@ library StreamSwapLibrary {
         StreamSwapState[] streamSwapState;
 
         // used for rate updates
-        mapping(address => uint64) superTokenToArgs;
+        mapping(address => uint64) superTokenToStateIdx;
 
         // used for getting existing stream configs for accounts
-        mapping(address => mapping (address => uint64)) accountStreamToArgs;
+        mapping(address => mapping (address => uint64)) inAccountTokenToStateIdx;
+
+        // used when outgoing stream is deleted, need to delete source streams
+        //mapping(address => mapping (address => uint64[])) outAccountTokenToStateIdx;
     }
 
     struct StreamSwapArgs {
         address destSuperToken;
         uint inAmount;
         uint128 minOut;
-        uint128 maxOut;
     }
 
     struct StreamSwapState {
@@ -52,15 +54,13 @@ library StreamSwapLibrary {
         address sender;
         uint inAmount;
         uint128 minOut;
-        uint128 maxOut;
+        uint64 active;
+        uint64 nextSenderAccount;
 
         uint64 prevForSrcSuperToken;
         uint64 nextForDestSuperToken;
         uint64 prevForDestSuperToken;
         uint64 nextForSrcSuperToken;
-
-        uint64 active;
-        uint64 nextSenderAccount;
     }
 
     struct AccountState {
@@ -77,16 +77,15 @@ library StreamSwapLibrary {
         uint balance; // balance (as of last balancer pool operation). this needs to be recorded for remembering relative stream amts
     }
 
-    event LOG_SET_FLOW(
+    event SetFlow(
         address indexed caller,
         address indexed tokenIn,
         address indexed tokenOut,
-        uint256         minOut,
-        uint256         maxOut,
-        uint256         tokenRateIn
+        uint256         tokenRateIn,
+        uint128         minOut
     );
 
-    event LOG_SET_FLOW_RATE(
+    event SetFlowRate(
         address indexed receiver,
         address indexed tokenIn,
         address indexed tokenOut,
@@ -97,9 +96,8 @@ library StreamSwapLibrary {
         (
             ssa.destSuperToken,
             ssa.inAmount,
-            ssa.minOut,
-            ssa.maxOut
-        ) = abi.decode(d, (address, uint, uint128, uint128));
+            ssa.minOut
+        ) = abi.decode(d, (address, uint, uint128));
     }
 
     function decodeUserData(bytes memory userData) internal pure returns (StreamSwapArgs[] memory) {
@@ -121,7 +119,7 @@ library StreamSwapLibrary {
     function updateSuperTokenPointers(Context storage ctx, address superToken, uint64 idx1, uint64 idx2) internal {
 
         if (idx1 == 0) {
-            ctx.superTokenToArgs[superToken] = idx2;
+            ctx.superTokenToStateIdx[superToken] = idx2;
             return;
         }
 
@@ -141,7 +139,7 @@ library StreamSwapLibrary {
     }
 
     function initialize(Context storage ctx) public {
-        ctx.streamSwapState.push(StreamSwapState(address(0), address(0), address(0), 0,0,0,0,0,0,0,0,0));
+        ctx.streamSwapState.push(StreamSwapState(address(0), address(0), address(0), 0,0,0,0,0,0,0,0));
     }
 
     function clearTradeOutWithContext(Context storage ctx, bytes memory newSfCtx, address superToken, address to, uint oldOutRate) private returns (bytes memory) {
@@ -296,9 +294,9 @@ library StreamSwapLibrary {
             args.inAmount, 0) : 0;
         
         // is the trade currently outside its range
-        if ((args.minOut != 0 && newOutRate < args.minOut) || (args.maxOut != 0 && newOutRate > args.maxOut)) {
+        if ((args.minOut != 0 && newOutRate < args.minOut)) {
             console.log("out of range", oldOutRate, newOutRate);
-            console.log("rates", uint(args.minOut), uint(args.maxOut));
+            console.log("rates", uint(args.minOut));
             if (prevArgs.inAmount != args.inAmount || prevArgs.active > 0) {
                 console.log("starting inactive");
                 if (prevArgs.active > 0) {
@@ -323,20 +321,20 @@ library StreamSwapLibrary {
             console.log("doing replace");
             newSfCtx = clearTradeOutWithContext(ctx, newSfCtx, prevArgs.destSuperToken, prevArgs.sender, oldOutRate);
             if(prevArgs.sender != address(0)) {
-                emit LOG_SET_FLOW(prevArgs.sender, address(superToken), prevArgs.destSuperToken, 0, 0, 0);
+                emit SetFlow(prevArgs.sender, address(superToken), prevArgs.destSuperToken, 0, 0);
             }
 
             newSfCtx = adjustTradeOutWithContext(ctx, newSfCtx, args.destSuperToken, args.sender, 0, newOutRate);
             if(args.sender != address(0)) {
-                emit LOG_SET_FLOW(args.sender, address(superToken), args.destSuperToken, args.minOut, args.maxOut, args.inAmount);
+                emit SetFlow(args.sender, address(superToken), args.destSuperToken, args.inAmount, args.minOut);
             }
         }
         else {
             newSfCtx = adjustTradeOutWithContext(ctx, newSfCtx, prevArgs.destSuperToken, prevArgs.sender, oldOutRate, newOutRate);
-            emit LOG_SET_FLOW(args.sender, address(superToken), args.destSuperToken, args.minOut, args.maxOut, args.inAmount);
+            emit SetFlow(args.sender, address(superToken), args.destSuperToken, args.inAmount, args.minOut);
         }
 
-        emit LOG_SET_FLOW_RATE(args.sender, args.srcSuperToken, args.destSuperToken, newOutRate);
+        emit SetFlowRate(args.sender, args.srcSuperToken, args.destSuperToken, newOutRate);
 
         return newSfCtx;
     }
@@ -352,12 +350,13 @@ library StreamSwapLibrary {
 
         uint inSum = 0;
 
-        uint64[2] memory curStateIdx = [ctx.accountStreamToArgs[context.msgSender][address(superToken)], 0];
+        uint64[2] memory curStateIdx = [ctx.inAccountTokenToStateIdx[context.msgSender][address(superToken)], 0];
 
         console.log("found existing?", curStateIdx[0] > 0);
 
         for (uint i = 0;i < args.length;i++) {
             require(args[i].inAmount > 0, "ERR_INVALID_AMOUNT");
+            require(args[i].destSuperToken != address(superToken), "ERR_INVALID_OUT_TOKEN");
 
             inSum += args[i].inAmount;
 
@@ -377,7 +376,6 @@ library StreamSwapLibrary {
                     sender: context.msgSender,
                     inAmount: args[i].inAmount,
                     minOut: args[i].minOut,
-                    maxOut: args[i].maxOut,
 
                     prevForSrcSuperToken: 0,
                     nextForSrcSuperToken: 0,
@@ -393,7 +391,7 @@ library StreamSwapLibrary {
                     updateSuperTokenPointers(ctx, entry.destSuperToken, entry.prevForDestSuperToken, entry.nextForDestSuperToken);
 
                     entry.destSuperToken = args[i].destSuperToken;
-                    uint64 prevHead = ctx.superTokenToArgs[args[i].destSuperToken];
+                    uint64 prevHead = ctx.superTokenToStateIdx[args[i].destSuperToken];
                     updateSuperTokenPointers(ctx, args[i].destSuperToken, curStateIdx[0], prevHead);
                     updateSuperTokenPointers(ctx, args[i].destSuperToken, 0, curStateIdx[0]);
                 }
@@ -401,7 +399,6 @@ library StreamSwapLibrary {
                 // update args
                 entry.inAmount = args[i].inAmount;
                 entry.minOut = args[i].minOut;
-                entry.maxOut = args[i].maxOut;
 
                 // could be a side effect from the updateTrade function
                 entry.active = newEntry.active;
@@ -418,12 +415,11 @@ library StreamSwapLibrary {
                     sender: context.msgSender,
                     inAmount: args[i].inAmount,
                     minOut: args[i].minOut,
-                    maxOut: args[i].maxOut,
 
                     prevForSrcSuperToken: 0,
-                    nextForSrcSuperToken: ctx.superTokenToArgs[address(superToken)],
+                    nextForSrcSuperToken: ctx.superTokenToStateIdx[address(superToken)],
                     prevForDestSuperToken: 0,
-                    nextForDestSuperToken: ctx.superTokenToArgs[args[i].destSuperToken],
+                    nextForDestSuperToken: ctx.superTokenToStateIdx[args[i].destSuperToken],
                     nextSenderAccount: 0,
                     active: 1
                 });
@@ -440,7 +436,7 @@ library StreamSwapLibrary {
                     ctx.streamSwapState[curStateIdx[1]].nextSenderAccount = pos;
                 }
                 else {
-                    ctx.accountStreamToArgs[context.msgSender][address(superToken)] = pos;
+                    ctx.inAccountTokenToStateIdx[context.msgSender][address(superToken)] = pos;
                 }
 
                 updateSuperTokenPointers(ctx, address(superToken), pos, newEntry.nextForSrcSuperToken);
@@ -479,7 +475,7 @@ library StreamSwapLibrary {
                 ctx.streamSwapState[curStateIdx[1]].nextSenderAccount = 0;
             }
             else {
-                ctx.accountStreamToArgs[context.msgSender][address(superToken)] = 0;
+                ctx.inAccountTokenToStateIdx[context.msgSender][address(superToken)] = 0;
             }
 
             curStateIdx[0] = nextStateIdx;
@@ -496,7 +492,7 @@ library StreamSwapLibrary {
     function updateFlowRates(Context storage ctx, address superToken, mapping(address => StreamSwapLibrary.Record) storage records, StreamSwapLibrary.Record memory prevRecord)
         public
     {
-        uint curIdx = ctx.superTokenToArgs[superToken];
+        uint curIdx = ctx.superTokenToStateIdx[superToken];
 
         console.log("update flow rates");
 
@@ -537,9 +533,9 @@ library StreamSwapLibrary {
             }
 
             // is the trade currently outside its range
-            if ((entry.minOut != 0 && newOutRate < entry.minOut) || (entry.maxOut != 0 && newOutRate > entry.maxOut)) {
+            if ((entry.minOut != 0 && newOutRate < entry.minOut)) {
             console.log("out of range", oldOutRate, newOutRate);
-            console.log("rates", uint(entry.minOut), uint(entry.maxOut));
+            console.log("rates", uint(entry.minOut));
                 if (entry.active > 0) {
                     console.log("starting deactivate");
                     clearTradeOut(ctx, entry.destSuperToken, entry.sender, oldOutRate);
@@ -561,7 +557,7 @@ library StreamSwapLibrary {
                 adjustTradeOut(ctx, entry.destSuperToken, entry.sender, oldOutRate, newOutRate);
             }
 
-            emit LOG_SET_FLOW_RATE(entry.sender, entry.srcSuperToken, entry.destSuperToken, newOutRate);
+            emit SetFlowRate(entry.sender, entry.srcSuperToken, entry.destSuperToken, newOutRate);
         }
 
         console.log("finished update");
