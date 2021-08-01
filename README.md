@@ -1,4 +1,4 @@
-# StreamSwap
+# Streamswap
 
 To learn more about the project, please visit the submodule folders:
 
