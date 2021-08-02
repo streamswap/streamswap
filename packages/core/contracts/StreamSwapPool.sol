@@ -51,7 +51,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         uint tokenOutBalance;
     }
 
-    event LOG_SET_FLOW(
+    event SetFlow(
         address indexed caller,
         address indexed tokenIn,
         address indexed tokenOut,
@@ -60,7 +60,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         uint256         tokenRateIn
     );
 
-    event LOG_SET_FLOW_RATE(
+    event SetFlowRate(
         address indexed receiver,
         address indexed tokenIn,
         address indexed tokenOut,
@@ -173,9 +173,9 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
 
     function afterAgreementCreated(
         ISuperToken _superToken,
-        address, // _agreementClass,
+        address _agreementClass,
         bytes32, // _agreementId,
-        bytes calldata /*_agreementData*/,
+        bytes calldata _agreementData,
         bytes calldata ,// _cbdata,
         bytes calldata _ctx
     )
@@ -183,6 +183,12 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         onlyHost
         returns (bytes memory newCtx)
     {
+        if(_agreementClass != address(_streamSwapContext.cfa)) {
+            return newCtx;
+        }
+
+        address sender = abi.decode(_agreementData, (address));
+
         console.log("agreement create");
         newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
     }
@@ -191,7 +197,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         ISuperToken _superToken,
         address _agreementClass,
         bytes32 ,//_agreementId,
-        bytes calldata , //_agreementData,
+        bytes calldata _agreementData,
         bytes calldata ,//_cbdata,
         bytes calldata _ctx
     )
@@ -199,6 +205,12 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         onlyHost
         returns (bytes memory newCtx)
     {
+        if(_agreementClass != address(_streamSwapContext.cfa)) {
+            return newCtx;
+        }
+
+        address sender = abi.decode(_agreementData, (address));
+
         console.log("agreement update");
         newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
     }
@@ -207,7 +219,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         ISuperToken _superToken,
         address _agreementClass,
         bytes32 ,//_agreementId,
-        bytes calldata /*_agreementData*/,
+        bytes calldata _agreementData,
         bytes calldata ,//_cbdata,
         bytes calldata _ctx
     )
@@ -215,6 +227,12 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
         onlyHost
         returns (bytes memory newCtx)
     {
+        if(_agreementClass != address(_streamSwapContext.cfa)) {
+            return newCtx;
+        }
+
+        address sender = abi.decode(_agreementData, (address));
+
         console.log("agreement term");
         newCtx = _streamSwapContext.makeTrade(_superToken, _ctx, _records);
     }
@@ -536,7 +554,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
             _records[t].balance = StreamSwapLibrary.badd(bal, tokenAmountIn);
             emit LOG_JOIN(msg.sender, t, tokenAmountIn);
             _pullUnderlying(t, msg.sender, tokenAmountIn);
-            _streamSwapContext.updateFlowRates(t, _records, oldRecord);
+            //_streamSwapContext.updateFlowRates(t, _records, oldRecord);
         }
         _mintPoolShare(poolAmountOut);
         _pushPoolShare(msg.sender, poolAmountOut);
@@ -569,7 +587,7 @@ contract StreamSwapPool is SuperAppBase, BBronze, BToken {
             _records[t].balance = StreamSwapLibrary.bsub(bal, tokenAmountOut);
             emit LOG_EXIT(msg.sender, t, tokenAmountOut);
             _pushUnderlying(t, msg.sender, tokenAmountOut);
-            _streamSwapContext.updateFlowRates(t, _records, oldRecord);
+            //_streamSwapContext.updateFlowRates(t, _records, oldRecord);
         }
 
     }
