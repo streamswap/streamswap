@@ -4,5 +4,5 @@ interface IStreamswapPool {
 
     function poolId() external returns (bytes32);
 
-    function makeTrade(ISuperToken superToken, bytes calldata ctx) external returns (bytes memory);
+    function makeStreamTrade(ISuperToken superToken, bytes calldata ctx) external returns (bytes memory);
 }

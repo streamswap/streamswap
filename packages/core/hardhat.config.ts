@@ -101,8 +101,12 @@ const hhConfig: HardhatUserConfig = {
       default: 0
     },
 
-    dummy: {
+    alice: {
       default: 1
+    },
+
+    bob: {
+      default: 2
     }
   },
   gasReporter: {

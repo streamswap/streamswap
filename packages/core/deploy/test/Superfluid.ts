@@ -15,7 +15,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     // deploy erc1820, a dependency hidden deep
     try {
-        const signer = await hre.ethers.getNamedSigner('deployer');
+        const signer = await hre.ethers.getSigner(deployer);
         
         await signer.sendTransaction({ to: DEPLOY_ERC1820_ADDR, value: wei(0.1).toBN()});
         await signer.provider!.sendTransaction(DEPLOY_ERC1820_RAW);

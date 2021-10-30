@@ -7,6 +7,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const {deploy} = hre.deployments;
     const {deployer} = await hre.getNamedAccounts();
 
+    await deploy('FakeWETH', {
+        from: deployer,
+        contract: 'WETH',
+        args: []
+    });
+
     await deploy('FakeUSDC', {
         from: deployer,
         contract: 'TestToken',
@@ -27,4 +33,4 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 };
 
 export default func;
-func.tags = ['FakeUSDC', 'FakeUNI', 'FakeWBTC'];
+func.tags = ['FakeWETH', 'FakeUSDC', 'FakeUNI', 'FakeWBTC'];

@@ -152,7 +152,7 @@ contract StreamswapAssetManager is IStreamswapAssetManager, RewardsAssetManager,
         returns (bytes memory newCtx)
     {
         console.log("agreement create");
-        newCtx = pool.makeTrade(_superToken, _ctx);
+        newCtx = pool.makeStreamTrade(_superToken, _ctx);
     }
 
     function afterAgreementUpdated(
@@ -168,7 +168,7 @@ contract StreamswapAssetManager is IStreamswapAssetManager, RewardsAssetManager,
         returns (bytes memory newCtx)
     {
         console.log("agreement update");
-        newCtx = pool.makeTrade(_superToken, _ctx);
+        newCtx = pool.makeStreamTrade(_superToken, _ctx);
     }
 
     function afterAgreementTerminated(
@@ -184,6 +184,6 @@ contract StreamswapAssetManager is IStreamswapAssetManager, RewardsAssetManager,
         returns (bytes memory newCtx)
     {
         console.log("agreement term");
-        newCtx = pool.makeTrade(_superToken, _ctx);
+        newCtx = pool.makeStreamTrade(_superToken, _ctx);
     }
 }
